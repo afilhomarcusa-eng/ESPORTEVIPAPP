@@ -1247,14 +1247,14 @@ function GastosControl({ db, update, gran, ref_, range }) {
         <div className={titSec}>Tendência de Gastos (Últimos Períodos)</div>
         <div className="h-56 w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={tendenciaGastos} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+            <LineChart data={tendenciaGastos} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" vertical={false} />
               <XAxis dataKey="rot" tick={{ fontSize: 10, fill: "#94a3b8" }} tickLine={false} axisLine={false} />
               <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} tickFormatter={(v) => (v / 1000).toFixed(0) + "k"} width={40} />
               <Tooltip formatter={(v) => [brl(v), "Total"]} contentStyle={{ borderRadius: 10, border: "1px solid #e2e8f0", fontSize: 12 }} />
               <ReferenceLine y={0} stroke="#cbd5e1" />
-              <Bar dataKey="total" radius={[4, 4, 0, 0]} fill="#475569" />
-            </BarChart>
+              <Line type="monotone" dataKey="total" stroke="#475569" strokeWidth={2.5} dot={{ r: 4, fill: "#475569" }} activeDot={{ r: 6 }} />
+            </LineChart>
           </ResponsiveContainer>
         </div>
       </div>
