@@ -29,6 +29,33 @@ const MESES_L = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","
 const CORES_LARANJA = ["#f97316","#fb923c","#fed7aa","#0ea5e9","#8b5cf6","#e11d48","#14b8a6","#ec4899","#84cc16","#6366f1"];
 const CATEGORIAS_GASTOS = ["Alimentação", "Transporte", "Infraestrutura", "Marketing", "Comissões", "Outros"];
 
+/* ======================== VALIDAÇÕES ======================== */
+const validarTelefone = (tel) => {
+  if (!tel) return true;
+  const cleaned = tel.replace(/\D/g, "");
+  return cleaned.length === 11 || cleaned.length === 13;
+};
+
+const validarComissao = (pct) => {
+  const n = toNum(pct);
+  return n >= 0 && n <= 1;
+};
+
+const validarEmail = (email) => {
+  if (!email) return true;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+};
+
+/* ======================== AUDITORIA ======================== */
+const registrarAuditoria = (acao, detalhes) => {
+  const timestamp = new Date().toISOString();
+  const log = { timestamp, acao, detalhes };
+  const logs = JSON.parse(localStorage.getItem("auditoria") || "[]");
+  logs.push(log);
+  if (logs.length > 1000) logs.shift();
+  localStorage.setItem("auditoria", JSON.stringify(logs));
+};
+
 /* ======================== PERÍODOS E DATAS ======================== */
 function startOfWeek(d) { const x = new Date(d); const g = (x.getDay() + 6) % 7; x.setDate(x.getDate() - g); x.setHours(0,0,0,0); return x; }
 function periodRange(gran, ref) {
@@ -264,12 +291,15 @@ export default function App() {
   const [ref, setRef] = useState(new Date());
   const [salvando, setSalvando] = useState(false);
   const [showInativeModal, setShowInativeModal] = useState(false);
+  const [inativos, setInativos] = useState([]);
   const primeira = useRef(true);
 
   useEffect(() => { loadDB().then(setDb); }, []);
   useEffect(() => {
     if (!db) return;
-    if (primeira.current) { primeira.current = false; setShowInativeModal(true); return; }
+    const inativosAtual = cambistasInativos(db.cambistas || [], db.lancamentos || []);
+    setInativos(inativosAtual);
+    if (primeira.current) { primeira.current = false; if (inativosAtual.length > 0) setShowInativeModal(true); return; }
     setSalvando(true);
     saveDB(db).then(() => setTimeout(() => setSalvando(false), 400));
   }, [db]);
@@ -347,6 +377,11 @@ export default function App() {
               <div className="text-lg font-semibold text-slate-900 capitalize">{nav.find((n) => n.id === aba)?.nome}</div>
               {db.exemplo && <div className="text-[11px] text-amber-600">Você está vendo dados de exemplo. Edite ou limpe quando quiser.</div>}
             </div>
+            {inativos.length > 0 && (
+              <button onClick={() => setShowInativeModal(true)} className="inline-flex items-center gap-2 text-xs bg-amber-50 border border-amber-200 text-amber-700 rounded-lg px-3 py-1.5 hover:bg-amber-100">
+                <Clock size={14} /> {inativos.length} cambista(s) inativo(s)
+              </button>
+            )}
             <PeriodPicker gran={gran} setGran={setGran} ref_={ref} setRef={setRef} />
           </header>
 
@@ -755,7 +790,17 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range }) {
                     <div className="flex gap-1 justify-end">
                       <button onClick={() => setPagar({ cambistaId: c.id, nome: c.nome, valor: saldo > 0 ? saldo.toFixed(2) : "", data: iso(new Date()), obs: "" })} title="Registrar pagamento" className="p-1.5 rounded-md hover:bg-orange-50 text-orange-600"><Banknote size={14} /></button>
                       <button onClick={() => setEditar({ ...c })} className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500"><Pencil size={14} /></button>
-                      <button onClick={() => { if (confirm(`Excluir ${c.nome}? Os lançamentos dele também serão removidos.`)) update((d) => { d.cambistas = d.cambistas.filter((x) => x.id !== c.id); d.lancamentos = d.lancamentos.filter((l) => l.cambistaId !== c.id); }); }} className="p-1.5 rounded-md hover:bg-rose-50 text-rose-500"><Trash2 size={14} /></button>
+                      <button onClick={() => {
+                        if (confirm(`CUIDADO: Excluir ${c.nome}?\n\nTodos os lançamentos dele também serão removidos. Esta ação é irreversível.\n\nClique OK para confirmar.`)) {
+                          if (confirm(`Tem certeza? Clique OK NOVAMENTE para deletar ${c.nome}.`)) {
+                            registrarAuditoria("deletar_cambista", { id: c.id, nome: c.nome });
+                            update((d) => {
+                              d.cambistas = d.cambistas.filter((x) => x.id !== c.id);
+                              d.lancamentos = d.lancamentos.filter((l) => l.cambistaId !== c.id);
+                            });
+                          }
+                        }
+                      }} className="p-1.5 rounded-md hover:bg-rose-50 text-rose-500"><Trash2 size={14} /></button>
                     </div>
                   </td>
                 </tr>
@@ -793,18 +838,40 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range }) {
 
 function ModalCambista({ dados, onClose, onSave }) {
   const [f, setF] = useState({ ...dados, comissaoTxt: String(dados.comissaoPadrao * 100) });
+  const [erros, setErros] = useState({});
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
+
   const salvar = () => {
-    if (!f.nome.trim()) return alert("Informe o nome do cambista.");
+    const novoErros = {};
+    if (!f.nome.trim()) novoErros.nome = "Nome obrigatório";
+    if (f.contato && !validarTelefone(f.contato)) novoErros.contato = "Telefone inválido. Use (11) 99999-9999 ou 5511999999999";
+
     const c = parseFloat(String(f.comissaoTxt).replace(",", ".")) / 100;
+    if (isNaN(c) || c < 0 || c > 1) novoErros.comissao = "Comissão deve estar entre 0% e 100%";
+
+    if (Object.keys(novoErros).length > 0) {
+      setErros(novoErros);
+      return;
+    }
+
+    registrarAuditoria(f.id ? "editar_cambista" : "criar_cambista", { nome: f.nome, comissao: c });
     onSave({ id: f.id, nome: f.nome.trim(), contato: f.contato, comissaoPadrao: isNaN(c) ? 0 : c, ativo: f.ativo });
   };
   return (
     <Modal titulo={f.id ? "Editar Cambista" : "Novo Cambista"} onClose={onClose} onSave={salvar}>
-      <Campo label="Nome"><input value={f.nome} onChange={(e) => set("nome", e.target.value)} className={inp} placeholder="Nome do cambista" /></Campo>
+      <Campo label="Nome">
+        <input value={f.nome} onChange={(e) => set("nome", e.target.value)} className={`${inp} ${erros.nome ? "border-red-500 focus:ring-red-500/30" : ""}`} placeholder="Nome do cambista" />
+        {erros.nome && <p className="text-xs text-red-600 mt-1">{erros.nome}</p>}
+      </Campo>
       <div className="grid grid-cols-2 gap-3">
-        <Campo label="Contato"><input value={f.contato} onChange={(e) => set("contato", e.target.value)} className={inp} placeholder="Telefone" /></Campo>
-        <Campo label="Comissão Padrão (%)"><input value={f.comissaoTxt} onChange={(e) => set("comissaoTxt", e.target.value)} className={inp} inputMode="decimal" /></Campo>
+        <Campo label="Contato">
+          <input value={f.contato} onChange={(e) => set("contato", e.target.value)} className={`${inp} ${erros.contato ? "border-red-500 focus:ring-red-500/30" : ""}`} placeholder="(11) 99999-9999" />
+          {erros.contato && <p className="text-xs text-red-600 mt-1">{erros.contato}</p>}
+        </Campo>
+        <Campo label="Comissão (%)">
+          <input value={f.comissaoTxt} onChange={(e) => set("comissaoTxt", e.target.value)} className={`${inp} ${erros.comissao ? "border-red-500 focus:ring-red-500/30" : ""}`} inputMode="decimal" />
+          {erros.comissao && <p className="text-xs text-red-600 mt-1">{erros.comissao}</p>}
+        </Campo>
       </div>
       <label className="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" checked={f.ativo} onChange={(e) => set("ativo", e.target.checked)} /> Cambista Ativo</label>
     </Modal>
@@ -943,8 +1010,10 @@ function GastosControl({ db, update, gran, ref_, range }) {
   const [data, setData] = useState(iso(new Date()));
   const [editId, setEditId] = useState(null);
   const [busca, setBusca] = useState("");
+  const [paginaGastos, setPaginaGastos] = useState(1);
 
   const [s, e] = range;
+  const ITENS_POR_PAGINA = 10;
 
   const gastosPeriodo = useMemo(() => (db.gastos || []).filter((g) => dentro({ data: g.data }, s, e)), [db.gastos, s, e]);
 
@@ -966,6 +1035,26 @@ function GastosControl({ db, update, gran, ref_, range }) {
       .filter((g) => !busca || g.descricao.toLowerCase().includes(busca.toLowerCase()) || g.categoria.toLowerCase().includes(busca.toLowerCase()))
       .sort((a, b) => b.data.localeCompare(a.data));
   }, [db.gastos, busca, s, e]);
+
+  const lista_paginada = useMemo(() => {
+    const inicio = (paginaGastos - 1) * ITENS_POR_PAGINA;
+    return lista_filtrada.slice(inicio, inicio + ITENS_POR_PAGINA);
+  }, [lista_filtrada, paginaGastos]);
+
+  const totalPaginas = Math.ceil(lista_filtrada.length / ITENS_POR_PAGINA);
+
+  const tendenciaGastos = useMemo(() => {
+    const g = gran === "tudo" ? "mes" : gran;
+    const out = [];
+    for (let i = 5; i >= 0; i--) {
+      const r = shiftRef(g, ref_, -i);
+      const [rs, re] = periodRange(g, r);
+      const gs = (db.gastos || []).filter((gst) => dentro({ data: gst.data }, rs, re));
+      const totalGasto = gs.reduce((acc, gst) => acc + gst.valor, 0);
+      out.push({ rot: rotuloCurto(g, r), total: totalGasto });
+    }
+    return out;
+  }, [db.gastos, gran, ref_]);
 
   const adicionar = () => {
     const v = parseFloat(String(valor).replace(",", "."));
@@ -1045,10 +1134,26 @@ function GastosControl({ db, update, gran, ref_, range }) {
         </div>
       </div>
 
+      <div className={cardBox}>
+        <div className={titSec}>Tendência de Gastos (Últimos Períodos)</div>
+        <div className="h-56 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={tendenciaGastos} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" vertical={false} />
+              <XAxis dataKey="rot" tick={{ fontSize: 10, fill: "#94a3b8" }} tickLine={false} axisLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} tickFormatter={(v) => (v / 1000).toFixed(0) + "k"} width={40} />
+              <Tooltip formatter={(v) => [brl(v), "Total"]} contentStyle={{ borderRadius: 10, border: "1px solid #e2e8f0", fontSize: 12 }} />
+              <ReferenceLine y={0} stroke="#cbd5e1" />
+              <Bar dataKey="total" radius={[4, 4, 0, 0]} fill="#f97316" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-200">
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-200 flex-wrap">
           <Search size={15} className="text-slate-400" />
-          <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por categoria ou descrição..." className="text-sm flex-1 outline-none bg-transparent" />
+          <input value={busca} onChange={(e) => { setBusca(e.target.value); setPaginaGastos(1); }} placeholder="Buscar por categoria ou descrição..." className="text-sm flex-1 outline-none bg-transparent" />
           <span className="text-xs text-slate-400 tabular-nums">{lista_filtrada.length} gasto(s)</span>
         </div>
         <div className="max-h-[520px] overflow-auto">
@@ -1063,7 +1168,7 @@ function GastosControl({ db, update, gran, ref_, range }) {
               </tr>
             </thead>
             <tbody>
-              {lista_filtrada.map((g) => (
+              {lista_paginada.map((g) => (
                 <tr key={g.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
                   <td className="px-4 py-2.5 tabular-nums text-slate-600">{fmtData(g.data)}</td>
                   <td className="px-4 py-2.5 text-slate-700 font-medium">{g.categoria}</td>
@@ -1081,6 +1186,15 @@ function GastosControl({ db, update, gran, ref_, range }) {
             </tbody>
           </table>
         </div>
+        {totalPaginas > 1 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 text-xs text-slate-600">
+            <span>Página {paginaGastos} de {totalPaginas}</span>
+            <div className="flex gap-1">
+              <button onClick={() => setPaginaGastos(Math.max(1, paginaGastos - 1))} disabled={paginaGastos === 1} className="p-1.5 rounded border border-slate-200 hover:bg-slate-50 disabled:opacity-50"><ChevronLeft size={16} /></button>
+              <button onClick={() => setPaginaGastos(Math.min(totalPaginas, paginaGastos + 1))} disabled={paginaGastos === totalPaginas} className="p-1.5 rounded border border-slate-200 hover:bg-slate-50 disabled:opacity-50"><ChevronRight size={16} /></button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
