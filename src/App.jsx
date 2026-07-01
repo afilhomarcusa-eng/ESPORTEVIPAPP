@@ -294,6 +294,7 @@ export default function App() {
   const [aba, setAba] = useState("dashboard");
   const [gran, setGran] = useState("mes");
   const [ref, setRef] = useState(new Date());
+  const [relatorioPre, setRelatorioPre] = useState(null);
   const [salvando, setSalvando] = useState(false);
   const [showInativeModal, setShowInativeModal] = useState(false);
   const [inativos, setInativos] = useState([]);
@@ -328,6 +329,17 @@ export default function App() {
 
   const update = (fn) => setDb((cur) => { const next = structuredClone(cur); fn(next); next.exemplo = false; return next; });
 
+  const gerarRelatorioSemanal = (cambistaId) => {
+    setGran("semana");
+    setRelatorioPre(cambistaId);
+    setAba("relatorios");
+  };
+
+  const irAba = (id) => {
+    if (id === "relatorios" && gran !== "semana" && gran !== "tudo") setGran("semana");
+    setAba(id);
+  };
+
   const nav = [
     { id: "dashboard", nome: "Visão Geral", curto: "Início", icon: LayoutDashboard },
     { id: "cambistas", nome: "Cambistas", curto: "Cambistas", icon: Users },
@@ -353,7 +365,7 @@ export default function App() {
             {nav.map((n) => {
               const Ic = n.icon; const on = aba === n.id;
               return (
-                <button key={n.id} onClick={() => setAba(n.id)}
+                <button key={n.id} onClick={() => irAba(n.id)}
                   className={`w-full flex items-center gap-3 px-3 py-2 border-l-2 rounded-r-lg text-sm transition ${on ? "bg-orange-500/15 text-orange-300 font-medium border-orange-400" : "text-slate-400 hover:bg-slate-800 hover:text-slate-200 border-transparent"}`}>
                   <Ic size={18} /> {n.nome}
                 </button>
@@ -386,7 +398,8 @@ export default function App() {
                 <Clock size={14} /> <span className="tabular-nums">{inativos.length}</span> <span className="hidden sm:inline">cambista(s) inativo(s)</span>
               </button>
             )}
-            <PeriodPicker gran={gran} setGran={setGran} ref_={ref} setRef={setRef} />
+            <PeriodPicker gran={gran} setGran={setGran} ref_={ref} setRef={setRef}
+              opts={aba === "relatorios" ? [["semana","Semanal"],["tudo","Tudo"]] : undefined} />
           </header>
 
           <main className="p-4 sm:p-6 pb-24 lg:pb-6 max-w-[1200px] mx-auto min-w-0">
@@ -395,13 +408,13 @@ export default function App() {
                 totais={totais} totaisPrev={totaisPrev} gran={gran} ref_={ref} range={[s, e]} />
             )}
             {aba === "cambistas" && (
-              <Cambistas db={db} update={update} cambById={cambById} lancs={lancsPeriodo} rotulo={rotuloPeriodo(gran, ref)} range={[s, e]} />
+              <Cambistas db={db} update={update} cambById={cambById} lancs={lancsPeriodo} rotulo={rotuloPeriodo(gran, ref)} range={[s, e]} gerarRelatorio={gerarRelatorioSemanal} />
             )}
             {aba === "gastos" && (
               <GastosControl db={db} update={update} gran={gran} ref_={ref} range={[s, e]} />
             )}
             {aba === "relatorios" && (
-              <Relatorios db={db} cambById={cambById} lancs={lancsPeriodo} gran={gran} ref_={ref} />
+              <Relatorios db={db} cambById={cambById} lancs={lancsPeriodo} gran={gran} ref_={ref} preSelecionar={relatorioPre} onConsumir={() => setRelatorioPre(null)} />
             )}
           </main>
         </div>
@@ -411,7 +424,7 @@ export default function App() {
         {nav.map((n) => {
           const Ic = n.icon; const on = aba === n.id;
           return (
-            <button key={n.id} onClick={() => setAba(n.id)}
+            <button key={n.id} onClick={() => irAba(n.id)}
               className={`flex-1 flex flex-col items-center gap-1 py-2.5 text-[10px] font-medium transition ${on ? "text-orange-400" : "text-slate-500 hover:text-slate-300"}`}>
               <Ic size={20} className={on ? "scale-110 transition-transform" : "transition-transform"} /> {n.curto}
             </button>
@@ -457,12 +470,13 @@ function ModalInactivos({ inativos, onClose }) {
 }
 
 /* ======================== SELETOR DE PERÍODO ======================== */
-function PeriodPicker({ gran, setGran, ref_, setRef }) {
-  const opts = [["semana","Semanal"],["quinzena","Quinzenal"],["mes","Mensal"],["ano","Anual"],["tudo","Tudo"]];
+function PeriodPicker({ gran, setGran, ref_, setRef, opts }) {
+  const todas = [["semana","Semanal"],["quinzena","Quinzenal"],["mes","Mensal"],["ano","Anual"],["tudo","Tudo"]];
+  const lista = opts || todas;
   return (
     <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
       <div className="flex rounded-lg border border-slate-200 overflow-hidden overflow-x-auto max-w-full">
-        {opts.map(([id, lab]) => (
+        {lista.map(([id, lab]) => (
           <button key={id} onClick={() => setGran(id)}
             className={`px-2.5 sm:px-3 py-1.5 text-xs font-medium whitespace-nowrap transition ${gran === id ? "bg-slate-900 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
             {lab}
@@ -549,13 +563,16 @@ function Dashboard({ db, update, cambById, lancs, totais, totaisPrev, gran, ref_
 
   const porCambista = useMemo(() => {
     const m = {};
+    for (const c of db.cambistas) {
+      if (c.ativo) m[c.id] = { id: c.id, nome: c.nome, bruto: 0, comissao: 0, receber: 0 };
+    }
     for (const l of lancs) {
       const c = calcLanc(l, cambById[l.cambistaId]);
-      m[l.cambistaId] = m[l.cambistaId] || { id: l.cambistaId, nome: cambById[l.cambistaId]?.nome || "Sem nome", bruto: 0, comissao: 0, receber: 0 };
+      if (!m[l.cambistaId]) m[l.cambistaId] = { id: l.cambistaId, nome: cambById[l.cambistaId]?.nome || "Sem nome", bruto: 0, comissao: 0, receber: 0 };
       m[l.cambistaId].bruto += l.positivo; m[l.cambistaId].comissao += c.comissao; m[l.cambistaId].receber += c.receber;
     }
     return Object.values(m).sort((a, b) => b.receber - a.receber);
-  }, [lancs, cambById]);
+  }, [lancs, cambById, db.cambistas]);
 
   const gastosPeriodo = useMemo(() => {
     const [gs, ge] = range;
@@ -587,7 +604,7 @@ function Dashboard({ db, update, cambById, lancs, totais, totaisPrev, gran, ref_
       {metaPeriodo != null && (
         <div className={cardBox}>
           <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2 text-sm font-semibold text-slate-700"><Target size={16} className="text-orange-500" /> Meta do Período</div>
+            <div className="text-sm font-semibold text-slate-700">Meta do Período</div>
             <button onClick={() => setEditMeta(true)} className="text-xs text-slate-400 hover:text-orange-600 font-medium">editar meta</button>
           </div>
           <div className="flex items-end justify-between mb-1.5">
@@ -719,7 +736,7 @@ function ModalMeta({ valor, onClose, onSave }) {
 }
 
 /* ======================== CAMBISTAS ======================== */
-function Cambistas({ db, update, cambById, lancs, rotulo, range }) {
+function Cambistas({ db, update, cambById, lancs, rotulo, range, gerarRelatorio }) {
   const [editar, setEditar] = useState(null);
   const [pagar, setPagar] = useState(null);
   const [lancar, setLancar] = useState(null);
@@ -788,7 +805,7 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range }) {
           </button>
         </div>
       </div>
-      <div className="text-xs text-slate-400 -mt-3">A planilha é a ponte com o Excel: exporte para editar fora do app, importe para trazer as mudanças de volta. Não é uma sincronização automática. <span className="text-slate-500">Toque em um cambista para ver detalhes, ou no botão laranja <span className="inline-flex items-center align-middle"><Plus size={11} /></span> para lançar quanto ele movimentou.</span></div>
+      <div className="text-xs text-slate-400 -mt-3">A planilha é a ponte com o Excel: exporte para editar fora do app, importe para trazer as mudanças de volta. Não é uma sincronização automática. <span className="text-slate-500">Toque em um cambista para ver detalhes, no botão laranja <span className="inline-flex items-center align-middle"><Plus size={11} /></span> para lançar quanto ele movimentou, ou no verde <span className="inline-flex items-center align-middle"><FileText size={11} /></span> para gerar o relatório semanal dele.</span></div>
 
       {ranking.length > 0 && (
         <div>
@@ -845,6 +862,7 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range }) {
                   <td className="px-4 py-3" onClick={(ev) => ev.stopPropagation()}>
                     <div className="flex gap-1 justify-end">
                       <button onClick={() => setLancar({ cambistaId: c.id, nome: c.nome, comissaoPadrao: c.comissaoPadrao })} title="Novo lançamento (valor movimentado)" className="p-1.5 rounded-md hover:bg-orange-100 bg-orange-50 text-orange-600"><Plus size={14} /></button>
+                      <button onClick={() => gerarRelatorio && gerarRelatorio(c.id)} title="Gerar relatório semanal deste cambista" className="p-1.5 rounded-md hover:bg-emerald-100 bg-emerald-50 text-emerald-600"><FileText size={14} /></button>
                       <button onClick={() => setPagar({ cambistaId: c.id, nome: c.nome, valor: saldo > 0 ? saldo.toFixed(2) : "", data: iso(new Date()), obs: "" })} title="Registrar pagamento" className="p-1.5 rounded-md hover:bg-orange-50 text-orange-600"><Banknote size={14} /></button>
                       <button onClick={() => setEditar({ ...c })} className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500"><Pencil size={14} /></button>
                       <button onClick={() => {
@@ -1327,7 +1345,7 @@ function GastosControl({ db, update, gran, ref_, range }) {
 }
 
 /* ======================== RELATÓRIOS ======================== */
-function Relatorios({ db, cambById, lancs, gran, ref_ }) {
+function Relatorios({ db, cambById, lancs, gran, ref_, preSelecionar, onConsumir }) {
   const [modo, setModo] = useState("paga");
   const [cambistaSel, setCambistaSel] = useState("");
   const [nome, setNome] = useState("");
@@ -1374,6 +1392,13 @@ function Relatorios({ db, cambById, lancs, gran, ref_ }) {
     setBruto(ag.bruto.toFixed(2).replace(".", ","));
     setModo(ag.receber >= 0 ? "paga" : "recebe");
   };
+
+  useEffect(() => {
+    if (preSelecionar) {
+      aoSelecionarCambista(preSelecionar);
+      onConsumir && onConsumir();
+    }
+  }, [preSelecionar]);
 
   const brutoNum = toNum(bruto);
   const pctNum = toNum(comissaoPct);
