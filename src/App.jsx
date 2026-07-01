@@ -856,6 +856,23 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range }) {
               ))}
               {linhas.length === 0 && <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400 text-sm">Nenhum cambista cadastrado. Clique em "Novo Cambista".</td></tr>}
             </tbody>
+            {linhas.length > 0 && (
+              <tfoot className="bg-slate-50 border-t-2 border-slate-200">
+                <tr className="font-semibold text-slate-800">
+                  <td className="px-4 py-3">Totais ({linhas.length})</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{brl(linhas.reduce((a, r) => a + r.bruto, 0))}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{brl(linhas.reduce((a, r) => a + r.comissao, 0))}</td>
+                  <td className="px-4 py-3 text-right tabular-nums text-slate-500">{brl(linhas.reduce((a, r) => a + r.pago, 0))}</td>
+                  <td className="px-4 py-3 text-center">
+                    {(() => {
+                      const totReceber = linhas.reduce((a, r) => a + r.receber, 0);
+                      return <span className={`text-xs tabular-nums font-bold ${totReceber >= 0 ? "text-emerald-600" : "text-rose-600"}`}>Líquido {brl(totReceber)}</span>;
+                    })()}
+                  </td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       </div>
@@ -1276,6 +1293,15 @@ function GastosControl({ db, update, gran, ref_, range }) {
               ))}
               {lista_filtrada.length === 0 && <tr><td colSpan={5} className="px-4 py-10 text-center text-slate-400 text-sm">Nenhum gasto registrado neste período.</td></tr>}
             </tbody>
+            {lista_filtrada.length > 0 && (
+              <tfoot className="sticky bottom-0 bg-slate-50 border-t-2 border-slate-200">
+                <tr>
+                  <td colSpan={3} className="px-4 py-3 font-semibold text-slate-700">Total {busca ? "filtrado" : "do período"} ({lista_filtrada.length})</td>
+                  <td className="px-4 py-3 text-right tabular-nums font-bold text-slate-900">{brl(lista_filtrada.reduce((a, g) => a + g.valor, 0))}</td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
         {totalPaginas > 1 && (
