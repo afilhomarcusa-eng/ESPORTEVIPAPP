@@ -18,6 +18,11 @@ const brl = (n) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Math.abs(n || 0));
 const numFmt = (n) => Math.abs(n || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const pct = (n) => `${(n * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
+const fmtEixo = (v) => {
+  const abs = Math.abs(v);
+  if (abs >= 1000) return (v / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + "k";
+  return v.toLocaleString("pt-BR", { maximumFractionDigits: 0 });
+};
 const toNum = (v) => { const n = parseFloat(String(v).replace(",", ".")); return isNaN(n) ? 0 : n; };
 const pad = (n) => String(n).padStart(2, "0");
 const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -485,7 +490,7 @@ const KPI_CORES = {
   rose: "bg-rose-50 text-rose-600",
 };
 
-function Kpi({ titulo, valor, delta, icon: Ic, cor = "orange", inverso = false }) {
+function Kpi({ titulo, valor, delta, icon: Ic, cor = "orange", inverso = false, corValor = "text-slate-900" }) {
   const bom = inverso ? (delta ?? 0) <= 0 : (delta ?? 0) >= 0;
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 min-w-0 transition hover:shadow-md hover:border-slate-300">
@@ -493,7 +498,7 @@ function Kpi({ titulo, valor, delta, icon: Ic, cor = "orange", inverso = false }
         <span className="text-xs font-medium text-slate-500">{titulo}</span>
         <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${KPI_CORES[cor] || KPI_CORES.orange}`}><Ic size={16} /></span>
       </div>
-      <div className="mt-2 text-2xl font-semibold text-slate-900 tabular-nums tracking-tight truncate">{valor}</div>
+      <div className={`mt-2 text-2xl font-semibold tabular-nums tracking-tight truncate ${corValor}`}>{valor}</div>
       {delta != null && isFinite(delta) && (
         <div className={`mt-1 inline-flex items-center gap-1 text-xs font-medium ${bom ? "text-emerald-600" : "text-rose-600"}`}>
           {bom ? <TrendingUp size={13} /> : <TrendingDown size={13} />} {pct(Math.abs(delta))} vs. período anterior
@@ -571,10 +576,10 @@ function Dashboard({ db, update, cambById, lancs, totais, totaisPrev, gran, ref_
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        <Kpi titulo="Resultado Bruto" valor={money(totais.bruto)} delta={delta(totais.bruto, totaisPrev.bruto)} icon={Coins} cor="slate" />
-        <Kpi titulo="Comissões" valor={money(totais.comissao)} delta={delta(totais.comissao, totaisPrev.comissao)} icon={Percent} cor="amber" inverso />
-        <Kpi titulo="Gastos" valor={money(gastosPeriodo)} delta={delta(gastosPeriodo, gastosPrev)} icon={DollarSign} cor="amber" inverso />
-        <Kpi titulo="Líquido Casa" valor={money(liquidoCasa)} delta={delta(liquidoCasa, liquidoCasaPrev)} icon={Wallet} cor={liquidoCasa >= 0 ? "emerald" : "rose"} />
+        <Kpi titulo="Resultado Bruto" valor={money(totais.bruto)} delta={delta(totais.bruto, totaisPrev.bruto)} icon={Coins} cor="slate" corValor={totais.bruto >= 0 ? "text-emerald-600" : "text-rose-600"} />
+        <Kpi titulo="Comissões" valor={money(totais.comissao)} delta={delta(totais.comissao, totaisPrev.comissao)} icon={Percent} cor="amber" inverso corValor={totais.comissao >= 0 ? "text-emerald-600" : "text-rose-600"} />
+        <Kpi titulo="Gastos" valor={money(gastosPeriodo)} delta={delta(gastosPeriodo, gastosPrev)} icon={DollarSign} cor="amber" inverso corValor={gastosPeriodo >= 0 ? "text-emerald-600" : "text-rose-600"} />
+        <Kpi titulo="Líquido Casa" valor={money(liquidoCasa)} delta={delta(liquidoCasa, liquidoCasaPrev)} icon={Wallet} cor={liquidoCasa >= 0 ? "emerald" : "rose"} corValor={liquidoCasa >= 0 ? "text-emerald-600" : "text-rose-600"} />
         <Kpi titulo="Cambistas Ativos" valor={`${cambistasAtivos}`} icon={Users} cor="indigo" />
         {totais.holdMedio != null && <Kpi titulo="Hold Médio" valor={pct(totais.holdMedio)} icon={Percent} cor="orange" />}
       </div>
@@ -614,11 +619,11 @@ function Dashboard({ db, update, cambById, lancs, totais, totaisPrev, gran, ref_
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" vertical={false} />
                 <XAxis dataKey="rot" tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} tickFormatter={(v) => (v / 1000).toFixed(0) + "k"} width={40} />
+                <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} tickFormatter={fmtEixo} width={40} />
                 <Tooltip formatter={(v, n) => [brl(v), n === "receber" ? "Líquido" : "Comissão"]} labelStyle={{ fontWeight: 600 }} contentStyle={{ borderRadius: 10, border: "1px solid #e2e8f0", fontSize: 12 }} />
                 <ReferenceLine y={0} stroke="#cbd5e1" />
-                <Area type="monotone" dataKey="receber" stroke="#16a34a" strokeWidth={2} fill="url(#gradOrange)" name="receber" />
-                <Line type="monotone" dataKey="comissao" stroke="#64748b" strokeWidth={1.6} dot={false} name="comissao" />
+                <Area type="monotone" dataKey="receber" stroke="#16a34a" strokeWidth={2.5} fill="url(#gradOrange)" name="receber" dot={{ r: 3, fill: "#16a34a", strokeWidth: 0 }} activeDot={{ r: 5 }} />
+                <Line type="monotone" dataKey="comissao" stroke="#94a3b8" strokeWidth={1.6} strokeDasharray="4 3" dot={false} name="comissao" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -631,10 +636,10 @@ function Dashboard({ db, update, cambById, lancs, totais, totaisPrev, gran, ref_
               <BarChart data={crescimento} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" vertical={false} />
                 <XAxis dataKey="rot" tick={{ fontSize: 10, fill: "#94a3b8" }} tickLine={false} axisLine={false} interval={0} />
-                <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} tickFormatter={(v) => (v / 1000).toFixed(0) + "k"} width={40} />
+                <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} tickFormatter={fmtEixo} width={40} />
                 <Tooltip formatter={(v) => [brl(v), "Líquido"]} contentStyle={{ borderRadius: 10, border: "1px solid #e2e8f0", fontSize: 12 }} />
                 <ReferenceLine y={0} stroke="#cbd5e1" />
-                <Bar dataKey="receber" radius={[4, 4, 0, 0]}>
+                <Bar dataKey="receber" radius={[4, 4, 0, 0]} maxBarSize={40}>
                   {crescimento.map((d, i) => <Cell key={i} fill={d.receber >= 0 ? "#16a34a" : "#e11d48"} />)}
                 </Bar>
               </BarChart>
@@ -650,11 +655,11 @@ function Dashboard({ db, update, cambById, lancs, totais, totaisPrev, gran, ref_
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={porCambista} layout="vertical" margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} tickFormatter={(v) => (v / 1000).toFixed(0) + "k"} />
+                <XAxis type="number" tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} tickFormatter={fmtEixo} />
                 <YAxis type="category" dataKey="nome" width={90} tick={{ fontSize: 11, fill: "#475569" }} tickLine={false} axisLine={false} />
                 <Tooltip formatter={(v) => [brl(v), "Líquido"]} contentStyle={{ borderRadius: 10, border: "1px solid #e2e8f0", fontSize: 12 }} />
                 <ReferenceLine x={0} stroke="#cbd5e1" />
-                <Bar dataKey="receber" radius={[0, 4, 4, 0]}>
+                <Bar dataKey="receber" radius={[0, 4, 4, 0]} maxBarSize={32}>
                   {porCambista.map((d, i) => <Cell key={i} fill={d.receber >= 0 ? "#16a34a" : "#e11d48"} />)}
                 </Bar>
               </BarChart>
@@ -666,13 +671,16 @@ function Dashboard({ db, update, cambById, lancs, totais, totaisPrev, gran, ref_
           <div className={titSec}>Comissões por Cambista</div>
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={porCambista} dataKey="comissao" nameKey="nome" cx="50%" cy="50%" innerRadius={45} outerRadius={80} paddingAngle={2}>
-                  {porCambista.map((d, i) => <Cell key={i} fill={CORES_LARANJA[i % CORES_LARANJA.length]} />)}
-                </Pie>
-                <Tooltip formatter={(v) => brl(v)} contentStyle={{ borderRadius: 10, border: "1px solid #e2e8f0", fontSize: 12 }} />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-              </PieChart>
+              <BarChart data={porCambista} layout="vertical" margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" horizontal={false} />
+                <XAxis type="number" tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} tickFormatter={fmtEixo} />
+                <YAxis type="category" dataKey="nome" width={90} tick={{ fontSize: 11, fill: "#475569" }} tickLine={false} axisLine={false} />
+                <Tooltip formatter={(v) => [brl(v), "Comissão"]} contentStyle={{ borderRadius: 10, border: "1px solid #e2e8f0", fontSize: 12 }} />
+                <ReferenceLine x={0} stroke="#cbd5e1" />
+                <Bar dataKey="comissao" radius={[0, 4, 4, 0]} maxBarSize={32}>
+                  {porCambista.map((d, i) => <Cell key={i} fill={d.comissao >= 0 ? "#f59e0b" : "#e11d48"} />)}
+                </Bar>
+              </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
@@ -1250,7 +1258,7 @@ function GastosControl({ db, update, gran, ref_, range }) {
             <LineChart data={tendenciaGastos} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" vertical={false} />
               <XAxis dataKey="rot" tick={{ fontSize: 10, fill: "#94a3b8" }} tickLine={false} axisLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} tickFormatter={(v) => (v / 1000).toFixed(0) + "k"} width={40} />
+              <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} tickFormatter={fmtEixo} width={40} />
               <Tooltip formatter={(v) => [brl(v), "Total"]} contentStyle={{ borderRadius: 10, border: "1px solid #e2e8f0", fontSize: 12 }} />
               <ReferenceLine y={0} stroke="#cbd5e1" />
               <Line type="monotone" dataKey="total" stroke="#475569" strokeWidth={2.5} dot={{ r: 4, fill: "#475569" }} activeDot={{ r: 6 }} />
