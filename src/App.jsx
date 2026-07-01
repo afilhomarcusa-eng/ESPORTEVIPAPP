@@ -1374,7 +1374,7 @@ function Relatorios({ db, cambById, lancs, gran, ref_, preSelecionar, onConsumir
 
   useEffect(() => {
     const style = document.createElement("style");
-    style.innerHTML = "@media print { body * { visibility: hidden; } #ticket-print-area, #ticket-print-area * { visibility: visible; } #ticket-print-area { position: fixed; inset: 0; padding: 24px; background: #020617; } }";
+    style.innerHTML = "@media print { body * { visibility: hidden; } #ticket-print-area, #ticket-print-area * { visibility: visible; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; } #ticket-print-area { position: fixed; left: 50%; top: 24px; transform: translateX(-50%); width: 420px; max-width: 92vw; padding: 24px; background: #020617 !important; border: 4px solid #f97316; border-radius: 24px; } }";
     document.head.appendChild(style);
     return () => { document.head.removeChild(style); };
   }, []);
@@ -1411,7 +1411,7 @@ function Relatorios({ db, cambById, lancs, gran, ref_, preSelecionar, onConsumir
   const baixarImagem = async () => {
     if (!window.html2canvas || !ticketRef.current) { alert("O gerador de imagem ainda está carregando. Tente novamente em alguns segundos."); return; }
     try {
-      const canvas = await window.html2canvas(ticketRef.current, { backgroundColor: "#020617", scale: 2 });
+      const canvas = await window.html2canvas(ticketRef.current, { backgroundColor: null, scale: 3, useCORS: true });
       const link = document.createElement("a");
       link.download = `relatorio-${(nome || "cambista").toLowerCase().replace(/\s+/g, "-")}.png`;
       link.href = canvas.toDataURL("image/png");
@@ -1426,7 +1426,7 @@ function Relatorios({ db, cambById, lancs, gran, ref_, preSelecionar, onConsumir
     if (!window.html2canvas || !ticketRef.current) return alert("Aguarde o gerador de imagem carregar.");
 
     try {
-      const canvas = await window.html2canvas(ticketRef.current, { backgroundColor: "#020617", scale: 2 });
+      const canvas = await window.html2canvas(ticketRef.current, { backgroundColor: null, scale: 3, useCORS: true });
       const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
 
       const formData = new FormData();
@@ -1542,7 +1542,7 @@ function Relatorios({ db, cambById, lancs, gran, ref_, preSelecionar, onConsumir
         </div>
 
         <div className="min-w-0">
-          <div id="ticket-print-area" ref={ticketRef} className="rounded-3xl p-8" style={{ background: "#020617" }}>
+          <div id="ticket-print-area" ref={ticketRef} className="rounded-3xl border-4 border-orange-500 p-8" style={{ background: "#020617" }}>
             <div className="text-center mb-6">
               <div className="text-2xl font-black tracking-tight"><span className="text-white">ESPORTEVIP</span><span className="text-orange-500">APP</span></div>
               {telefone && <div className="text-white text-sm font-semibold mt-1">{telefone}</div>}
@@ -1564,7 +1564,7 @@ function Relatorios({ db, cambById, lancs, gran, ref_, preSelecionar, onConsumir
                   <div className="w-9 h-9 rounded-full bg-orange-500 text-white font-bold flex items-center justify-center shrink-0">{inicial}</div>
                   <div className="min-w-0">
                     <div className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold">Cambista</div>
-                    <div className="text-slate-900 font-bold truncate">{nome || "Sem Nome"}</div>
+                    <div className="text-slate-900 font-bold truncate leading-relaxed pb-0.5">{nome || "Sem Nome"}</div>
                   </div>
                 </div>
                 <div className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold shrink-0">Fechamento</div>
@@ -1601,7 +1601,7 @@ function Relatorios({ db, cambById, lancs, gran, ref_, preSelecionar, onConsumir
               <div className="bg-green-500 text-slate-950 font-black text-xs rounded-lg px-2.5 py-1.5 shrink-0">PIX</div>
               <div className="min-w-0">
                 <div className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold">Forma de Pagamento</div>
-                <div className="text-white font-bold text-sm truncate">Aguarde enviarmos a chave Pix</div>
+                <div className="text-white font-bold text-sm leading-relaxed pb-0.5">Aguarde enviarmos a chave Pix</div>
               </div>
             </div>
 
