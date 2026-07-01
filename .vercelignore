@@ -1,0 +1,11 @@
+.git
+.gitignore
+README.md
+APRESENTACAO_CHEFE.md
+ANALISE_TECNICA_SENIOR.md
+INDEX.md
+GITHUB_SETUP.md
+RESUMO_ENTREGA.txt
+docs/
+node_modules/
+.env.example
