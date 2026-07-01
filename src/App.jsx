@@ -315,8 +315,6 @@ export default function App() {
   const totais = useMemo(() => agrega(lancsPeriodo, cambById), [lancsPeriodo, cambById]);
   const totaisPrev = useMemo(() => agrega(lancsPrev, cambById), [lancsPrev, cambById]);
 
-  const inativos = useMemo(() => cambistasInativos(db?.cambistas || [], db?.lancamentos || []), [db]);
-
   if (!db) return (
     <div className="min-h-screen flex items-center justify-center bg-slate-950 text-orange-500">
       <div className="animate-pulse text-sm tracking-wide">Carregando o sistema</div>
