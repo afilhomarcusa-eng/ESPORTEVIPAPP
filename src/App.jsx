@@ -717,16 +717,20 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range }) {
   const [lancar, setLancar] = useState(null);
   const [detalhe, setDetalhe] = useState(null);
   const [importando, setImportando] = useState(false);
+  const [dtDe, setDtDe] = useState("");
+  const [dtAte, setDtAte] = useState("");
   const fileRef = useRef(null);
-  const [s, e] = range;
+  const custom = dtDe && dtAte;
+  const [s, e] = custom ? [parse(dtDe), parse(dtAte)] : range;
+  const lancsEf = useMemo(() => custom ? (db.lancamentos || []).filter((l) => dentro(l, s, e)) : lancs, [custom, db.lancamentos, lancs, s, e]);
 
   const linhas = useMemo(() => db.cambistas.map((c) => {
-    const ls = lancs.filter((l) => l.cambistaId === c.id);
+    const ls = lancsEf.filter((l) => l.cambistaId === c.id);
     const ag = agrega(ls, cambById);
     const pago = (db.pagamentos || []).filter((p) => p.cambistaId === c.id && dentro(p, s, e)).reduce((a, p) => a + p.valor, 0);
     const saldo = ag.comissao - pago;
     return { c, ...ag, pago, saldo };
-  }).sort((a, b) => b.receber - a.receber), [db, lancs, cambById, s, e]);
+  }).sort((a, b) => b.receber - a.receber), [db, lancsEf, cambById, s, e]);
 
   const ranking = linhas.slice(0, 3).filter((r) => r.n > 0);
 
@@ -750,7 +754,16 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range }) {
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="text-sm text-slate-500">Comissões do Período: <span className="font-medium text-slate-700">{rotulo}</span></div>
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="text-sm text-slate-500">Período: <span className="font-medium text-slate-700">{custom ? `${fmtData(dtDe)} a ${fmtData(dtAte)}` : rotulo}</span></div>
+          <div className={`flex items-center gap-1.5 text-xs border rounded-lg px-2.5 py-1.5 ${custom ? "border-orange-300 bg-orange-50" : "border-slate-200 bg-white"}`}>
+            <span className="text-slate-400">De</span>
+            <input type="date" value={dtDe} onChange={(ev) => setDtDe(ev.target.value)} className="outline-none bg-transparent text-slate-700" />
+            <span className="text-slate-400">Até</span>
+            <input type="date" value={dtAte} onChange={(ev) => setDtAte(ev.target.value)} className="outline-none bg-transparent text-slate-700" />
+          </div>
+          {custom && <button onClick={() => { setDtDe(""); setDtAte(""); }} className="text-xs text-slate-400 hover:text-rose-500">limpar</button>}
+        </div>
         <div className="flex gap-2 flex-wrap">
           <input ref={fileRef} type="file" accept=".xlsx" className="hidden" onChange={(ev) => { aoImportar(ev.target.files[0]); ev.target.value = ""; }} />
           <button onClick={() => fileRef.current?.click()} disabled={importando}
@@ -980,25 +993,28 @@ function MiniKpi({ rotulo, v, cor = "text-slate-900" }) {
 function ModalDetalheCambista({ cambista, lancamentos, pagamentos, onClose }) {
   const [gran, setGran] = useState("mes");
   const [ref, setRef] = useState(new Date());
+  const [dtDe, setDtDe] = useState("");
+  const [dtAte, setDtAte] = useState("");
   const cambById = { [cambista.id]: cambista };
-  const [s, e] = useMemo(() => periodRange(gran, ref), [gran, ref]);
-  const ls = useMemo(() => gran === "tudo" ? lancamentos : lancamentos.filter((l) => dentro(l, s, e)), [lancamentos, gran, s, e]);
+  const custom = dtDe && dtAte;
+  const [s, e] = useMemo(() => custom ? [parse(dtDe), parse(dtAte)] : periodRange(gran, ref), [custom, dtDe, dtAte, gran, ref]);
+  const ls = useMemo(() => {
+    if (custom) return lancamentos.filter((l) => dentro(l, s, e));
+    return gran === "tudo" ? lancamentos : lancamentos.filter((l) => dentro(l, s, e));
+  }, [lancamentos, custom, gran, s, e]);
   const ag = useMemo(() => agrega(ls, cambById), [ls]);
 
-  const historico = useMemo(() => {
-    const g = gran === "tudo" ? "mes" : gran;
-    const out = [];
-    for (let i = 5; i >= 0; i--) {
-      const r = shiftRef(g, ref, -i);
-      const [rs, re] = periodRange(g, r);
-      const lsx = lancamentos.filter((l) => dentro(l, rs, re));
-      out.push({ rot: rotuloCurto(g, r), receber: agrega(lsx, cambById).receber });
+  const porDia = useMemo(() => {
+    const map = new Map();
+    for (const l of ls) {
+      const cur = map.get(l.data) || { data: l.data, total: 0, n: 0 };
+      cur.total += l.positivo; cur.n += 1;
+      map.set(l.data, cur);
     }
-    return out;
-  }, [lancamentos, gran, ref]);
+    return [...map.values()].sort((a, b) => b.data.localeCompare(a.data));
+  }, [ls]);
 
-  const listaOrdenada = useMemo(() => [...ls].sort((a, b) => b.data.localeCompare(a.data)), [ls]);
-  const pagoNoPeriodo = pagamentos.filter((p) => gran === "tudo" || dentro(p, s, e)).reduce((a, p) => a + p.valor, 0);
+  const pagoNoPeriodo = pagamentos.filter((p) => custom ? dentro(p, s, e) : (gran === "tudo" || dentro(p, s, e))).reduce((a, p) => a + p.valor, 0);
   const saldo = ag.comissao - pagoNoPeriodo;
 
   return (
@@ -1015,10 +1031,19 @@ function ModalDetalheCambista({ cambista, lancamentos, pagamentos, onClose }) {
           <button onClick={onClose} className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 shrink-0"><X size={18} /></button>
         </div>
         <div className="p-6 space-y-5">
-          <div className="flex rounded-lg border border-slate-200 overflow-hidden w-fit">
-            {[["semana","Semana"],["mes","Mês"],["tudo","Tudo"]].map(([id, lab]) => (
-              <button key={id} onClick={() => setGran(id)} className={`px-3 py-1.5 text-xs font-medium ${gran === id ? "bg-slate-900 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>{lab}</button>
-            ))}
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex rounded-lg border border-slate-200 overflow-hidden w-fit">
+              {[["semana","Semana"],["mes","Mês"],["tudo","Tudo"]].map(([id, lab]) => (
+                <button key={id} onClick={() => { setGran(id); setDtDe(""); setDtAte(""); }} className={`px-3 py-1.5 text-xs font-medium ${!custom && gran === id ? "bg-slate-900 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>{lab}</button>
+              ))}
+            </div>
+            <div className={`flex items-center gap-1.5 text-xs border rounded-lg px-2.5 py-1.5 ${custom ? "border-orange-300 bg-orange-50" : "border-slate-200 bg-white"}`}>
+              <span className="text-slate-400">De</span>
+              <input type="date" value={dtDe} onChange={(ev) => setDtDe(ev.target.value)} className="outline-none bg-transparent text-slate-700" />
+              <span className="text-slate-400">Até</span>
+              <input type="date" value={dtAte} onChange={(ev) => setDtAte(ev.target.value)} className="outline-none bg-transparent text-slate-700" />
+            </div>
+            {custom && <button onClick={() => { setDtDe(""); setDtAte(""); }} className="text-xs text-slate-400 hover:text-rose-500">limpar</button>}
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -1029,47 +1054,24 @@ function ModalDetalheCambista({ cambista, lancamentos, pagamentos, onClose }) {
           </div>
 
           <div className={cardBox}>
-            <div className={titSec}>Histórico</div>
-            <div className="h-56 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={historico} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" vertical={false} />
-                  <XAxis dataKey="rot" tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} tickFormatter={(v) => (v / 1000).toFixed(0) + "k"} width={40} />
-                  <Tooltip formatter={(v) => [brl(v), "Líquido"]} contentStyle={{ borderRadius: 10, border: "1px solid #e2e8f0", fontSize: 12 }} />
-                  <ReferenceLine y={0} stroke="#cbd5e1" />
-                  <Bar dataKey="receber" radius={[4, 4, 0, 0]}>
-                    {historico.map((d, i) => <Cell key={i} fill={d.receber >= 0 ? "#16a34a" : "#e11d48"} />)}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+            <div className="flex items-center justify-between mb-3">
+              <div className={titSec + " mb-0"}>Histórico por Dia</div>
+              <div className="text-right">
+                <div className="text-[10px] uppercase tracking-wide text-slate-400">Saldo Total</div>
+                <div className={`text-lg font-bold tabular-nums ${ag.bruto >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{ag.bruto >= 0 ? "+" : ""}{brl(ag.bruto)}</div>
+              </div>
             </div>
-          </div>
-
-          <div>
-            <div className={titSec}>{gran === "tudo" ? "Todo o Histórico de Lançamentos" : "Lançamentos no Período"}</div>
-            <div className="max-h-64 overflow-y-auto border border-slate-200 rounded-lg">
-              <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-slate-50">
-                  <tr className="text-left text-xs text-slate-500 border-b border-slate-200">
-                    <th className="px-3 py-2 font-medium">Data</th>
-                    <th className="px-3 py-2 font-medium text-right">Resultado</th>
-                    <th className="px-3 py-2 font-medium text-right">Comissão</th>
-                    <th className="px-3 py-2 font-medium text-right">Líquido</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {listaOrdenada.map((l) => { const c = calcLanc(l, cambista); return (
-                    <tr key={l.id} className="border-b border-slate-100 last:border-0">
-                      <td className="px-3 py-2 tabular-nums text-slate-600">{fmtData(l.data)}</td>
-                      <td className={`px-3 py-2 text-right tabular-nums ${l.positivo >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{brl(l.positivo)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums text-slate-900">{brl(c.comissao)}</td>
-                      <td className={`px-3 py-2 text-right tabular-nums font-semibold ${c.receber >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{brl(c.receber)}</td>
-                    </tr>
-                  ); })}
-                  {listaOrdenada.length === 0 && <tr><td colSpan={4} className="px-3 py-8 text-center text-slate-400">Nenhum lançamento neste período.</td></tr>}
-                </tbody>
-              </table>
+            <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
+              {porDia.map((d) => (
+                <div key={d.data} className="flex items-center justify-between py-2.5">
+                  <span className="text-sm text-slate-600 tabular-nums">
+                    {fmtData(d.data)}
+                    {d.n > 1 && <span className="text-xs text-slate-400 ml-2">({d.n} lançamentos)</span>}
+                  </span>
+                  <span className={`text-sm font-bold tabular-nums ${d.total >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{d.total >= 0 ? "+" : ""}{brl(d.total)}</span>
+                </div>
+              ))}
+              {porDia.length === 0 && <div className="py-8 text-center text-slate-400 text-sm">Nenhum lançamento neste período.</div>}
             </div>
           </div>
         </div>
@@ -1087,8 +1089,11 @@ function GastosControl({ db, update, gran, ref_, range }) {
   const [editId, setEditId] = useState(null);
   const [busca, setBusca] = useState("");
   const [paginaGastos, setPaginaGastos] = useState(1);
+  const [dtDe, setDtDe] = useState("");
+  const [dtAte, setDtAte] = useState("");
 
-  const [s, e] = range;
+  const custom = dtDe && dtAte;
+  const [s, e] = custom ? [parse(dtDe), parse(dtAte)] : range;
   const ITENS_POR_PAGINA = 10;
 
   const gastosPeriodo = useMemo(() => (db.gastos || []).filter((g) => dentro({ data: g.data }, s, e)), [db.gastos, s, e]);
@@ -1156,6 +1161,17 @@ function GastosControl({ db, update, gran, ref_, range }) {
 
   return (
     <div className="space-y-5">
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="text-sm text-slate-500">Período: <span className="font-medium text-slate-700">{custom ? `${fmtData(dtDe)} a ${fmtData(dtAte)}` : rotuloPeriodo(gran, ref_)}</span></div>
+        <div className={`flex items-center gap-1.5 text-xs border rounded-lg px-2.5 py-1.5 ${custom ? "border-orange-300 bg-orange-50" : "border-slate-200 bg-white"}`}>
+          <span className="text-slate-400">De</span>
+          <input type="date" value={dtDe} onChange={(ev) => { setDtDe(ev.target.value); setPaginaGastos(1); }} className="outline-none bg-transparent text-slate-700" />
+          <span className="text-slate-400">Até</span>
+          <input type="date" value={dtAte} onChange={(ev) => { setDtAte(ev.target.value); setPaginaGastos(1); }} className="outline-none bg-transparent text-slate-700" />
+        </div>
+        {custom && <button onClick={() => { setDtDe(""); setDtAte(""); }} className="text-xs text-slate-400 hover:text-rose-500">limpar</button>}
+      </div>
+
       <div className="bg-white rounded-xl border border-slate-200 p-4">
         <div className="text-sm font-semibold text-slate-700 mb-3">{editId ? "Editar Gasto" : "Novo Gasto"}</div>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
@@ -1185,7 +1201,7 @@ function GastosControl({ db, update, gran, ref_, range }) {
         <div className={cardBox}>
           <div className={titSec}>Total Gasto</div>
           <div className="text-3xl font-bold text-slate-900 tabular-nums">{brl(dados_agregados.total)}</div>
-          <div className="text-xs text-slate-500 mt-2">Período: {rotuloPeriodo(gran, ref_)}</div>
+          <div className="text-xs text-slate-500 mt-2">Período: {custom ? `${fmtData(dtDe)} a ${fmtData(dtAte)}` : rotuloPeriodo(gran, ref_)}</div>
         </div>
 
         <div className={`${cardBox} lg:col-span-2`}>
