@@ -477,10 +477,12 @@ function PeriodPicker({ gran, setGran, ref_, setRef }) {
 
 /* ======================== CARD KPI ======================== */
 const KPI_CORES = {
-  slate: "bg-slate-100 text-slate-600",
+  slate: "bg-slate-100 text-slate-700",
   amber: "bg-amber-50 text-amber-600",
   orange: "bg-orange-50 text-orange-600",
   indigo: "bg-indigo-50 text-indigo-600",
+  emerald: "bg-emerald-50 text-emerald-600",
+  rose: "bg-rose-50 text-rose-600",
 };
 
 function Kpi({ titulo, valor, delta, icon: Ic, cor = "orange", inverso = false }) {
@@ -493,7 +495,7 @@ function Kpi({ titulo, valor, delta, icon: Ic, cor = "orange", inverso = false }
       </div>
       <div className="mt-2 text-2xl font-semibold text-slate-900 tabular-nums tracking-tight truncate">{valor}</div>
       {delta != null && isFinite(delta) && (
-        <div className={`mt-1 inline-flex items-center gap-1 text-xs font-medium ${bom ? "text-orange-600" : "text-rose-600"}`}>
+        <div className={`mt-1 inline-flex items-center gap-1 text-xs font-medium ${bom ? "text-emerald-600" : "text-rose-600"}`}>
           {bom ? <TrendingUp size={13} /> : <TrendingDown size={13} />} {pct(Math.abs(delta))} vs. período anterior
         </div>
       )}
@@ -572,7 +574,7 @@ function Dashboard({ db, update, cambById, lancs, totais, totaisPrev, gran, ref_
         <Kpi titulo="Resultado Bruto" valor={money(totais.bruto)} delta={delta(totais.bruto, totaisPrev.bruto)} icon={Coins} cor="slate" />
         <Kpi titulo="Comissões" valor={money(totais.comissao)} delta={delta(totais.comissao, totaisPrev.comissao)} icon={Percent} cor="amber" inverso />
         <Kpi titulo="Gastos" valor={money(gastosPeriodo)} delta={delta(gastosPeriodo, gastosPrev)} icon={DollarSign} cor="amber" inverso />
-        <Kpi titulo="Líquido Casa" valor={money(liquidoCasa)} delta={delta(liquidoCasa, liquidoCasaPrev)} icon={Wallet} cor="orange" />
+        <Kpi titulo="Líquido Casa" valor={money(liquidoCasa)} delta={delta(liquidoCasa, liquidoCasaPrev)} icon={Wallet} cor={liquidoCasa >= 0 ? "emerald" : "rose"} />
         <Kpi titulo="Cambistas Ativos" valor={`${cambistasAtivos}`} icon={Users} cor="indigo" />
         {totais.holdMedio != null && <Kpi titulo="Hold Médio" valor={pct(totais.holdMedio)} icon={Percent} cor="orange" />}
       </div>
@@ -588,7 +590,7 @@ function Dashboard({ db, update, cambById, lancs, totais, totaisPrev, gran, ref_
             <span className="text-sm text-slate-400">meta {brl(metaPeriodo)}</span>
           </div>
           <div className="h-2.5 rounded-full bg-slate-100 overflow-hidden">
-            <div className={`h-full rounded-full ${progresso >= 1 ? "bg-orange-500" : progresso >= 0.6 ? "bg-amber-400" : "bg-rose-400"}`}
+            <div className={`h-full rounded-full ${progresso >= 1 ? "bg-emerald-500" : progresso >= 0.6 ? "bg-amber-400" : "bg-rose-400"}`}
               style={{ width: `${Math.min(100, Math.max(0, (progresso || 0) * 100))}%` }} />
           </div>
           <div className="text-xs text-slate-400 mt-1">{pct(Math.max(0, progresso || 0))} da meta atingida</div>
@@ -606,8 +608,8 @@ function Dashboard({ db, update, cambById, lancs, totais, totaisPrev, gran, ref_
               <AreaChart data={serie} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="gradOrange" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#f97316" stopOpacity={0.35} />
-                    <stop offset="100%" stopColor="#f97316" stopOpacity={0} />
+                    <stop offset="0%" stopColor="#16a34a" stopOpacity={0.35} />
+                    <stop offset="100%" stopColor="#16a34a" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" vertical={false} />
@@ -615,8 +617,8 @@ function Dashboard({ db, update, cambById, lancs, totais, totaisPrev, gran, ref_
                 <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} tickFormatter={(v) => (v / 1000).toFixed(0) + "k"} width={40} />
                 <Tooltip formatter={(v, n) => [brl(v), n === "receber" ? "Líquido" : "Comissão"]} labelStyle={{ fontWeight: 600 }} contentStyle={{ borderRadius: 10, border: "1px solid #e2e8f0", fontSize: 12 }} />
                 <ReferenceLine y={0} stroke="#cbd5e1" />
-                <Area type="monotone" dataKey="receber" stroke="#f97316" strokeWidth={2} fill="url(#gradOrange)" name="receber" />
-                <Line type="monotone" dataKey="comissao" stroke="#f59e0b" strokeWidth={1.6} dot={false} name="comissao" />
+                <Area type="monotone" dataKey="receber" stroke="#16a34a" strokeWidth={2} fill="url(#gradOrange)" name="receber" />
+                <Line type="monotone" dataKey="comissao" stroke="#64748b" strokeWidth={1.6} dot={false} name="comissao" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -633,7 +635,7 @@ function Dashboard({ db, update, cambById, lancs, totais, totaisPrev, gran, ref_
                 <Tooltip formatter={(v) => [brl(v), "Líquido"]} contentStyle={{ borderRadius: 10, border: "1px solid #e2e8f0", fontSize: 12 }} />
                 <ReferenceLine y={0} stroke="#cbd5e1" />
                 <Bar dataKey="receber" radius={[4, 4, 0, 0]}>
-                  {crescimento.map((d, i) => <Cell key={i} fill={d.receber >= 0 ? "#f97316" : "#e11d48"} />)}
+                  {crescimento.map((d, i) => <Cell key={i} fill={d.receber >= 0 ? "#16a34a" : "#e11d48"} />)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -653,7 +655,7 @@ function Dashboard({ db, update, cambById, lancs, totais, totaisPrev, gran, ref_
                 <Tooltip formatter={(v) => [brl(v), "Líquido"]} contentStyle={{ borderRadius: 10, border: "1px solid #e2e8f0", fontSize: 12 }} />
                 <ReferenceLine x={0} stroke="#cbd5e1" />
                 <Bar dataKey="receber" radius={[0, 4, 4, 0]}>
-                  {porCambista.map((d, i) => <Cell key={i} fill={d.receber >= 0 ? "#f97316" : "#e11d48"} />)}
+                  {porCambista.map((d, i) => <Cell key={i} fill={d.receber >= 0 ? "#16a34a" : "#e11d48"} />)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -808,13 +810,13 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range }) {
                     <div className="text-xs text-slate-400">{c.contato || "sem contato"}, padrão {pct(c.comissaoPadrao)}</div>
                   </td>
                   <td className={`px-4 py-3 text-right tabular-nums ${bruto < 0 ? "text-rose-600" : "text-slate-700"}`}>{brl(bruto)}</td>
-                  <td className={`px-4 py-3 text-right tabular-nums font-semibold ${comissao < 0 ? "text-rose-600" : "text-orange-600"}`}>{brl(comissao)}</td>
+                  <td className={`px-4 py-3 text-right tabular-nums font-semibold ${comissao < 0 ? "text-rose-600" : "text-slate-900"}`}>{brl(comissao)}</td>
                   <td className="px-4 py-3 text-right tabular-nums text-slate-500">{brl(pago)}</td>
                   <td className="px-4 py-3 text-center">
                     {receber < 0 ? (
                       <span className="inline-flex items-center gap-1 text-[11px] bg-rose-50 text-rose-700 rounded-full px-2 py-1 tabular-nums"><AlertTriangle size={12} /> Devedor {brl(receber)}</span>
                     ) : saldo <= 0.01 ? (
-                      <span className="inline-flex items-center gap-1 text-[11px] bg-orange-50 text-orange-700 rounded-full px-2 py-1"><CheckCircle2 size={12} /> Em dia</span>
+                      <span className="inline-flex items-center gap-1 text-[11px] bg-emerald-50 text-emerald-700 rounded-full px-2 py-1"><CheckCircle2 size={12} /> Em dia</span>
                     ) : (
                       <span className="inline-flex items-center gap-1 text-[11px] bg-amber-50 text-amber-700 rounded-full px-2 py-1 tabular-nums">{brl(saldo)} pendente</span>
                     )}
@@ -963,8 +965,8 @@ function ModalLancamento({ dados, onClose, onSave }) {
         <input value={f.pctTxt} onChange={(e) => set("pctTxt", e.target.value)} className={inp} inputMode="decimal" />
       </Campo>
       <div className="bg-slate-50 rounded-lg p-3 text-sm space-y-1.5">
-        <div className="flex justify-between"><span className="text-slate-500">Comissão</span><span className={`font-semibold tabular-nums ${comissao < 0 ? "text-rose-600" : "text-orange-600"}`}>{brl(comissao)}</span></div>
-        <div className="flex justify-between border-t border-slate-200 pt-1.5"><span className="text-slate-500">{liquido >= 0 ? "Líquido da Casa" : "Saldo Devedor"}</span><span className={`font-bold tabular-nums ${liquido >= 0 ? "text-orange-600" : "text-rose-600"}`}>{brl(liquido)}</span></div>
+        <div className="flex justify-between"><span className="text-slate-500">Comissão</span><span className={`font-semibold tabular-nums ${comissao < 0 ? "text-rose-600" : "text-slate-900"}`}>{brl(comissao)}</span></div>
+        <div className="flex justify-between border-t border-slate-200 pt-1.5"><span className="text-slate-500">{liquido >= 0 ? "Líquido da Casa" : "Saldo Devedor"}</span><span className={`font-bold tabular-nums ${liquido >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{brl(liquido)}</span></div>
       </div>
       <div className="text-xs text-slate-400">Use um valor <span className="font-medium text-rose-500">negativo</span> se o cambista perdeu na conta. Nesse caso o resultado vira saldo devedor (vermelho).</div>
     </Modal>
@@ -1021,9 +1023,9 @@ function ModalDetalheCambista({ cambista, lancamentos, pagamentos, onClose }) {
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <MiniKpi rotulo="Bruto" v={brl(ag.bruto)} />
-            <MiniKpi rotulo="Comissão" v={brl(ag.comissao)} cor="text-orange-600" />
-            <MiniKpi rotulo="Líquido" v={brl(ag.receber)} cor={ag.receber >= 0 ? "text-orange-600" : "text-rose-600"} />
-            <MiniKpi rotulo="Saldo Pendente" v={brl(Math.max(0, saldo))} cor={saldo > 0.01 ? "text-amber-600" : "text-orange-600"} />
+            <MiniKpi rotulo="Comissão" v={brl(ag.comissao)} cor="text-slate-900" />
+            <MiniKpi rotulo="Líquido" v={brl(ag.receber)} cor={ag.receber >= 0 ? "text-emerald-600" : "text-rose-600"} />
+            <MiniKpi rotulo="Saldo Pendente" v={brl(Math.max(0, saldo))} cor={saldo > 0.01 ? "text-amber-600" : "text-emerald-600"} />
           </div>
 
           <div className={cardBox}>
@@ -1037,7 +1039,7 @@ function ModalDetalheCambista({ cambista, lancamentos, pagamentos, onClose }) {
                   <Tooltip formatter={(v) => [brl(v), "Líquido"]} contentStyle={{ borderRadius: 10, border: "1px solid #e2e8f0", fontSize: 12 }} />
                   <ReferenceLine y={0} stroke="#cbd5e1" />
                   <Bar dataKey="receber" radius={[4, 4, 0, 0]}>
-                    {historico.map((d, i) => <Cell key={i} fill={d.receber >= 0 ? "#f97316" : "#e11d48"} />)}
+                    {historico.map((d, i) => <Cell key={i} fill={d.receber >= 0 ? "#16a34a" : "#e11d48"} />)}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -1060,9 +1062,9 @@ function ModalDetalheCambista({ cambista, lancamentos, pagamentos, onClose }) {
                   {listaOrdenada.map((l) => { const c = calcLanc(l, cambista); return (
                     <tr key={l.id} className="border-b border-slate-100 last:border-0">
                       <td className="px-3 py-2 tabular-nums text-slate-600">{fmtData(l.data)}</td>
-                      <td className={`px-3 py-2 text-right tabular-nums ${l.positivo >= 0 ? "text-orange-600" : "text-rose-600"}`}>{brl(l.positivo)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums text-orange-600">{brl(c.comissao)}</td>
-                      <td className={`px-3 py-2 text-right tabular-nums font-semibold ${c.receber >= 0 ? "text-orange-600" : "text-rose-600"}`}>{brl(c.receber)}</td>
+                      <td className={`px-3 py-2 text-right tabular-nums ${l.positivo >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{brl(l.positivo)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-slate-900">{brl(c.comissao)}</td>
+                      <td className={`px-3 py-2 text-right tabular-nums font-semibold ${c.receber >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{brl(c.receber)}</td>
                     </tr>
                   ); })}
                   {listaOrdenada.length === 0 && <tr><td colSpan={4} className="px-3 py-8 text-center text-slate-400">Nenhum lançamento neste período.</td></tr>}
@@ -1218,7 +1220,7 @@ function GastosControl({ db, update, gran, ref_, range }) {
               <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} tickFormatter={(v) => (v / 1000).toFixed(0) + "k"} width={40} />
               <Tooltip formatter={(v) => [brl(v), "Total"]} contentStyle={{ borderRadius: 10, border: "1px solid #e2e8f0", fontSize: 12 }} />
               <ReferenceLine y={0} stroke="#cbd5e1" />
-              <Bar dataKey="total" radius={[4, 4, 0, 0]} fill="#f97316" />
+              <Bar dataKey="total" radius={[4, 4, 0, 0]} fill="#475569" />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -1247,7 +1249,7 @@ function GastosControl({ db, update, gran, ref_, range }) {
                   <td className="px-4 py-2.5 tabular-nums text-slate-600">{fmtData(g.data)}</td>
                   <td className="px-4 py-2.5 text-slate-700 font-medium">{g.categoria}</td>
                   <td className="px-4 py-2.5 text-slate-600">{g.descricao}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-orange-600">{brl(g.valor)}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-slate-900">{brl(g.valor)}</td>
                   <td className="px-4 py-2.5">
                     <div className="flex gap-1 justify-end">
                       <button onClick={() => { setEditId(g.id); setCategoria(g.categoria); setDescricao(g.descricao); setValor(String(g.valor)); setData(g.data); window.scrollTo({ top: 0, behavior: "smooth" }); }} className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500"><Pencil size={14} /></button>
@@ -1392,8 +1394,8 @@ function Relatorios({ db, cambById, lancs, gran, ref_ }) {
             <button onClick={() => setModo("paga")} className={`rounded-lg border px-3 py-2 text-sm font-semibold flex items-center gap-2 justify-center ${modo === "paga" ? "border-red-500 bg-red-500/10 text-white" : "border-slate-700 text-slate-400"}`}>
               <span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Você Paga
             </button>
-            <button onClick={() => setModo("recebe")} className={`rounded-lg border px-3 py-2 text-sm font-semibold flex items-center gap-2 justify-center ${modo === "recebe" ? "border-orange-500 bg-orange-500/10 text-white" : "border-slate-700 text-slate-400"}`}>
-              <span className="w-2 h-2 rounded-full bg-orange-500 inline-block" /> Você Recebe
+            <button onClick={() => setModo("recebe")} className={`rounded-lg border px-3 py-2 text-sm font-semibold flex items-center gap-2 justify-center ${modo === "recebe" ? "border-emerald-500 bg-emerald-500/10 text-white" : "border-slate-700 text-slate-400"}`}>
+              <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" /> Você Recebe
             </button>
           </div>
 
@@ -1504,7 +1506,7 @@ function Relatorios({ db, cambById, lancs, gran, ref_ }) {
                 <span className="text-slate-500 font-medium flex items-center gap-2">Comissão <span className="text-[10px] bg-orange-50 text-orange-600 font-bold px-1.5 py-0.5 rounded">{pctNum}%</span></span>
                 <span className="text-slate-900 font-bold text-2xl tabular-nums">{numFmt(comissaoNum)}</span>
               </div>
-              <div className={`px-5 py-4 flex items-center justify-between ${modo === "paga" ? "bg-red-600" : "bg-orange-600"}`}>
+              <div className={`px-5 py-4 flex items-center justify-between ${modo === "paga" ? "bg-red-600" : "bg-emerald-600"}`}>
                 <div>
                   <div className="text-[10px] uppercase tracking-wide text-white/70 font-semibold">Total Geral</div>
                   <div className="text-white font-bold">{modo === "paga" ? "Você Paga" : "Nós Temos que Pagar"}</div>
@@ -1517,7 +1519,7 @@ function Relatorios({ db, cambById, lancs, gran, ref_ }) {
 
             <div className="flex items-center justify-center gap-5 mt-4 text-xs text-slate-400 flex-wrap">
               <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Você Paga</span>
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" /> Nós Temos que Pagar</span>
+              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" /> Nós Temos que Pagar</span>
             </div>
 
             <div className="mt-4 bg-slate-800/60 border border-slate-700 rounded-xl p-4 flex items-center gap-3">
