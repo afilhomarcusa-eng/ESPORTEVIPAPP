@@ -324,17 +324,17 @@ export default function App() {
   const update = (fn) => setDb((cur) => { const next = structuredClone(cur); fn(next); next.exemplo = false; return next; });
 
   const nav = [
-    { id: "dashboard", nome: "Visão Geral", icon: LayoutDashboard },
-    { id: "cambistas", nome: "Cambistas", icon: Users },
-    { id: "gastos", nome: "Controle de Gastos", icon: DollarSign },
-    { id: "relatorios", nome: "Relatórios", icon: FileText },
+    { id: "dashboard", nome: "Visão Geral", curto: "Início", icon: LayoutDashboard },
+    { id: "cambistas", nome: "Cambistas", curto: "Cambistas", icon: Users },
+    { id: "gastos", nome: "Controle de Gastos", curto: "Gastos", icon: DollarSign },
+    { id: "relatorios", nome: "Relatórios", curto: "Relatórios", icon: FileText },
   ];
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-800" style={{ fontFamily: "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif" }}>
       <div className="h-1 bg-orange-600" />
       <div className="flex">
-        <aside className="w-56 shrink-0 bg-slate-900 text-slate-300 flex flex-col sticky top-0 h-screen border-r border-slate-800">
+        <aside className="hidden lg:flex w-56 shrink-0 bg-slate-900 text-slate-300 flex-col sticky top-0 h-screen border-r border-slate-800">
           <div className="px-5 py-5 border-b border-slate-800">
             <div className="flex items-center gap-2">
               <div className="w-9 h-9 rounded-full bg-orange-500 flex items-center justify-center text-slate-900 font-black text-xs">EA</div>
@@ -370,20 +370,21 @@ export default function App() {
         </aside>
 
         <div className="flex-1 min-w-0">
-          <header className="sticky top-0 z-10 bg-white/90 backdrop-blur border-b border-slate-200 px-6 py-3 flex items-center gap-4 flex-wrap">
-            <div className="mr-auto">
-              <div className="text-lg font-semibold text-slate-900 capitalize">{nav.find((n) => n.id === aba)?.nome}</div>
-              {db.exemplo && <div className="text-[11px] text-amber-600">Você está vendo dados de exemplo. Edite ou limpe quando quiser.</div>}
+          <header className="sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-slate-200 px-4 sm:px-6 py-3 flex items-center gap-3 flex-wrap">
+            <div className="lg:hidden w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center text-slate-900 font-black text-[11px] shrink-0">EA</div>
+            <div className="mr-auto min-w-0">
+              <div className="text-base sm:text-lg font-semibold text-slate-900 capitalize truncate">{nav.find((n) => n.id === aba)?.nome}</div>
+              {db.exemplo && <div className="text-[11px] text-amber-600 hidden sm:block">Você está vendo dados de exemplo. Edite ou limpe quando quiser.</div>}
             </div>
             {inativos.length > 0 && (
-              <button onClick={() => setShowInativeModal(true)} className="inline-flex items-center gap-2 text-xs bg-amber-50 border border-amber-200 text-amber-700 rounded-lg px-3 py-1.5 hover:bg-amber-100">
-                <Clock size={14} /> {inativos.length} cambista(s) inativo(s)
+              <button onClick={() => setShowInativeModal(true)} className="inline-flex items-center gap-2 text-xs bg-amber-50 border border-amber-200 text-amber-700 rounded-lg px-2.5 py-1.5 hover:bg-amber-100 transition">
+                <Clock size={14} /> <span className="tabular-nums">{inativos.length}</span> <span className="hidden sm:inline">cambista(s) inativo(s)</span>
               </button>
             )}
             <PeriodPicker gran={gran} setGran={setGran} ref_={ref} setRef={setRef} />
           </header>
 
-          <main className="p-6 max-w-[1200px] mx-auto min-w-0">
+          <main className="p-4 sm:p-6 pb-24 lg:pb-6 max-w-[1200px] mx-auto min-w-0">
             {aba === "dashboard" && (
               <Dashboard db={db} update={update} cambById={cambById} lancs={lancsPeriodo}
                 totais={totais} totaisPrev={totaisPrev} gran={gran} ref_={ref} range={[s, e]} />
@@ -400,6 +401,18 @@ export default function App() {
           </main>
         </div>
       </div>
+
+      <nav className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-slate-900 border-t border-slate-800 flex shadow-[0_-4px_20px_rgba(0,0,0,0.15)]">
+        {nav.map((n) => {
+          const Ic = n.icon; const on = aba === n.id;
+          return (
+            <button key={n.id} onClick={() => setAba(n.id)}
+              className={`flex-1 flex flex-col items-center gap-1 py-2.5 text-[10px] font-medium transition ${on ? "text-orange-400" : "text-slate-500 hover:text-slate-300"}`}>
+              <Ic size={20} className={on ? "scale-110 transition-transform" : "transition-transform"} /> {n.curto}
+            </button>
+          );
+        })}
+      </nav>
 
       {showInativeModal && (
         <ModalInactivos inativos={inativos} onClose={() => setShowInativeModal(false)} />
@@ -442,20 +455,20 @@ function ModalInactivos({ inativos, onClose }) {
 function PeriodPicker({ gran, setGran, ref_, setRef }) {
   const opts = [["semana","Semanal"],["quinzena","Quinzenal"],["mes","Mensal"],["ano","Anual"],["tudo","Tudo"]];
   return (
-    <div className="flex items-center gap-3">
-      <div className="flex rounded-lg border border-slate-200 overflow-hidden">
+    <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+      <div className="flex rounded-lg border border-slate-200 overflow-hidden overflow-x-auto max-w-full">
         {opts.map(([id, lab]) => (
           <button key={id} onClick={() => setGran(id)}
-            className={`px-3 py-1.5 text-xs font-medium ${gran === id ? "bg-slate-900 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+            className={`px-2.5 sm:px-3 py-1.5 text-xs font-medium whitespace-nowrap transition ${gran === id ? "bg-slate-900 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
             {lab}
           </button>
         ))}
       </div>
       {gran !== "tudo" && (
         <div className="flex items-center gap-1">
-          <button onClick={() => setRef(shiftRef(gran, ref_, -1))} className="p-1.5 rounded-md border border-slate-200 hover:bg-slate-50"><ChevronLeft size={16} /></button>
-          <div className="text-xs font-medium text-slate-700 min-w-32 text-center tabular-nums">{rotuloPeriodo(gran, ref_)}</div>
-          <button onClick={() => setRef(shiftRef(gran, ref_, 1))} className="p-1.5 rounded-md border border-slate-200 hover:bg-slate-50"><ChevronRight size={16} /></button>
+          <button onClick={() => setRef(shiftRef(gran, ref_, -1))} className="p-1.5 rounded-md border border-slate-200 hover:bg-slate-50 transition"><ChevronLeft size={16} /></button>
+          <div className="text-xs font-medium text-slate-700 min-w-[7rem] text-center tabular-nums">{rotuloPeriodo(gran, ref_)}</div>
+          <button onClick={() => setRef(shiftRef(gran, ref_, 1))} className="p-1.5 rounded-md border border-slate-200 hover:bg-slate-50 transition"><ChevronRight size={16} /></button>
         </div>
       )}
     </div>
@@ -463,13 +476,20 @@ function PeriodPicker({ gran, setGran, ref_, setRef }) {
 }
 
 /* ======================== CARD KPI ======================== */
+const KPI_CORES = {
+  slate: "bg-slate-100 text-slate-600",
+  amber: "bg-amber-50 text-amber-600",
+  orange: "bg-orange-50 text-orange-600",
+  indigo: "bg-indigo-50 text-indigo-600",
+};
+
 function Kpi({ titulo, valor, delta, icon: Ic, cor = "orange", inverso = false }) {
   const bom = inverso ? (delta ?? 0) <= 0 : (delta ?? 0) >= 0;
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-4 min-w-0">
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 min-w-0 transition hover:shadow-md hover:border-slate-300">
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium text-slate-500">{titulo}</span>
-        <span className={`w-7 h-7 rounded-lg flex items-center justify-center bg-${cor}-50 text-${cor}-600 shrink-0`}><Ic size={15} /></span>
+        <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${KPI_CORES[cor] || KPI_CORES.orange}`}><Ic size={16} /></span>
       </div>
       <div className="mt-2 text-2xl font-semibold text-slate-900 tabular-nums tracking-tight truncate">{valor}</div>
       {delta != null && isFinite(delta) && (
@@ -481,7 +501,7 @@ function Kpi({ titulo, valor, delta, icon: Ic, cor = "orange", inverso = false }
   );
 }
 
-const cardBox = "bg-white rounded-xl border border-slate-200 p-4 min-w-0";
+const cardBox = "bg-white rounded-xl border border-slate-200 shadow-sm p-4 min-w-0";
 const titSec = "text-sm font-semibold text-slate-700 mb-3";
 const inp = "w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500";
 const lbl = "block text-xs font-medium text-slate-500 mb-1";
@@ -727,12 +747,12 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range }) {
             <FileSpreadsheet size={15} /> Exportar Planilha
           </button>
           <button onClick={() => setEditar({ id: null, nome: "", contato: "", comissaoPadrao: 0.1, ativo: true })}
-            className="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-lg px-3 py-2">
+            className="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-lg px-3 py-2 shadow-sm transition">
             <Plus size={16} /> Novo Cambista
           </button>
         </div>
       </div>
-      <div className="text-xs text-slate-400 -mt-3">A planilha é a ponte com o Excel: exporte para editar fora do app, importe para trazer as mudanças de volta. Não é uma sincronização automática.</div>
+      <div className="text-xs text-slate-400 -mt-3">A planilha é a ponte com o Excel: exporte para editar fora do app, importe para trazer as mudanças de volta. Não é uma sincronização automática. <span className="text-slate-500">Toque em um cambista para ver os detalhes.</span></div>
 
       {ranking.length > 0 && (
         <div>
@@ -769,7 +789,7 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range }) {
             </thead>
             <tbody>
               {linhas.map(({ c, bruto, comissao, pago, saldo, receber, n }) => (
-                <tr key={c.id} onClick={() => setDetalhe(c)} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 cursor-pointer">
+                <tr key={c.id} onClick={() => setDetalhe(c)} className="group border-b border-slate-100 last:border-0 hover:bg-orange-50/40 cursor-pointer transition-colors">
                   <td className="px-4 py-3">
                     <div className="font-medium text-slate-800 flex items-center gap-2">{c.nome} {!c.ativo && <span className="text-[10px] bg-slate-100 text-slate-500 rounded px-1.5 py-0.5">inativo</span>}</div>
                     <div className="text-xs text-slate-400">{c.contato || "sem contato"}, padrão {pct(c.comissaoPadrao)}</div>
