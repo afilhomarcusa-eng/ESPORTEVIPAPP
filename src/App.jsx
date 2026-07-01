@@ -550,6 +550,17 @@ function Dashboard({ db, update, cambById, lancs, totais, totaisPrev, gran, ref_
     return Object.values(m).sort((a, b) => b.receber - a.receber);
   }, [lancs, cambById]);
 
+  const gastosPeriodo = useMemo(() => {
+    const [gs, ge] = range;
+    return (db.gastos || []).filter((g) => dentro({ data: g.data }, gs, ge)).reduce((a, g) => a + g.valor, 0);
+  }, [db.gastos, range]);
+  const gastosPrev = useMemo(() => {
+    const [ps, pe] = periodRange(gran, shiftRef(gran, ref_, -1));
+    return (db.gastos || []).filter((g) => dentro({ data: g.data }, ps, pe)).reduce((a, g) => a + g.valor, 0);
+  }, [db.gastos, gran, ref_]);
+  const liquidoCasa = totais.receber - gastosPeriodo;
+  const liquidoCasaPrev = totaisPrev.receber - gastosPrev;
+
   const cambistasAtivos = db.cambistas.filter((c) => c.ativo).length;
   const emPrejuizo = porCambista.filter((c) => c.receber < 0);
   const metaPeriodo = metaDoPeriodo(db.metaMensal, gran);
@@ -557,10 +568,11 @@ function Dashboard({ db, update, cambById, lancs, totais, totaisPrev, gran, ref_
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         <Kpi titulo="Resultado Bruto" valor={money(totais.bruto)} delta={delta(totais.bruto, totaisPrev.bruto)} icon={Coins} cor="slate" />
-        <Kpi titulo="Comissões Pagas" valor={money(totais.comissao)} delta={delta(totais.comissao, totaisPrev.comissao)} icon={Percent} cor="amber" inverso />
-        <Kpi titulo="Líquido da Casa" valor={money(totais.receber)} delta={delta(totais.receber, totaisPrev.receber)} icon={Wallet} cor="orange" />
+        <Kpi titulo="Comissões" valor={money(totais.comissao)} delta={delta(totais.comissao, totaisPrev.comissao)} icon={Percent} cor="amber" inverso />
+        <Kpi titulo="Gastos" valor={money(gastosPeriodo)} delta={delta(gastosPeriodo, gastosPrev)} icon={DollarSign} cor="amber" inverso />
+        <Kpi titulo="Líquido Casa" valor={money(liquidoCasa)} delta={delta(liquidoCasa, liquidoCasaPrev)} icon={Wallet} cor="orange" />
         <Kpi titulo="Cambistas Ativos" valor={`${cambistasAtivos}`} icon={Users} cor="indigo" />
         {totais.holdMedio != null && <Kpi titulo="Hold Médio" valor={pct(totais.holdMedio)} icon={Percent} cor="orange" />}
       </div>
@@ -700,6 +712,7 @@ function ModalMeta({ valor, onClose, onSave }) {
 function Cambistas({ db, update, cambById, lancs, rotulo, range }) {
   const [editar, setEditar] = useState(null);
   const [pagar, setPagar] = useState(null);
+  const [lancar, setLancar] = useState(null);
   const [detalhe, setDetalhe] = useState(null);
   const [importando, setImportando] = useState(false);
   const fileRef = useRef(null);
@@ -752,7 +765,7 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range }) {
           </button>
         </div>
       </div>
-      <div className="text-xs text-slate-400 -mt-3">A planilha é a ponte com o Excel: exporte para editar fora do app, importe para trazer as mudanças de volta. Não é uma sincronização automática. <span className="text-slate-500">Toque em um cambista para ver os detalhes.</span></div>
+      <div className="text-xs text-slate-400 -mt-3">A planilha é a ponte com o Excel: exporte para editar fora do app, importe para trazer as mudanças de volta. Não é uma sincronização automática. <span className="text-slate-500">Toque em um cambista para ver detalhes, ou no botão laranja <span className="inline-flex items-center align-middle"><Plus size={11} /></span> para lançar quanto ele movimentou.</span></div>
 
       {ranking.length > 0 && (
         <div>
@@ -794,11 +807,13 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range }) {
                     <div className="font-medium text-slate-800 flex items-center gap-2">{c.nome} {!c.ativo && <span className="text-[10px] bg-slate-100 text-slate-500 rounded px-1.5 py-0.5">inativo</span>}</div>
                     <div className="text-xs text-slate-400">{c.contato || "sem contato"}, padrão {pct(c.comissaoPadrao)}</div>
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums text-slate-700">{brl(bruto)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums font-semibold text-orange-600">{brl(comissao)}</td>
+                  <td className={`px-4 py-3 text-right tabular-nums ${bruto < 0 ? "text-rose-600" : "text-slate-700"}`}>{brl(bruto)}</td>
+                  <td className={`px-4 py-3 text-right tabular-nums font-semibold ${comissao < 0 ? "text-rose-600" : "text-orange-600"}`}>{brl(comissao)}</td>
                   <td className="px-4 py-3 text-right tabular-nums text-slate-500">{brl(pago)}</td>
                   <td className="px-4 py-3 text-center">
-                    {saldo <= 0.01 ? (
+                    {receber < 0 ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] bg-rose-50 text-rose-700 rounded-full px-2 py-1 tabular-nums"><AlertTriangle size={12} /> Devedor {brl(receber)}</span>
+                    ) : saldo <= 0.01 ? (
                       <span className="inline-flex items-center gap-1 text-[11px] bg-orange-50 text-orange-700 rounded-full px-2 py-1"><CheckCircle2 size={12} /> Em dia</span>
                     ) : (
                       <span className="inline-flex items-center gap-1 text-[11px] bg-amber-50 text-amber-700 rounded-full px-2 py-1 tabular-nums">{brl(saldo)} pendente</span>
@@ -806,6 +821,7 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range }) {
                   </td>
                   <td className="px-4 py-3" onClick={(ev) => ev.stopPropagation()}>
                     <div className="flex gap-1 justify-end">
+                      <button onClick={() => setLancar({ cambistaId: c.id, nome: c.nome, comissaoPadrao: c.comissaoPadrao })} title="Novo lançamento (valor movimentado)" className="p-1.5 rounded-md hover:bg-orange-100 bg-orange-50 text-orange-600"><Plus size={14} /></button>
                       <button onClick={() => setPagar({ cambistaId: c.id, nome: c.nome, valor: saldo > 0 ? saldo.toFixed(2) : "", data: iso(new Date()), obs: "" })} title="Registrar pagamento" className="p-1.5 rounded-md hover:bg-orange-50 text-orange-600"><Banknote size={14} /></button>
                       <button onClick={() => setEditar({ ...c })} className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500"><Pencil size={14} /></button>
                       <button onClick={() => {
@@ -844,6 +860,14 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range }) {
           onSave={(val) => {
             update((d) => { d.pagamentos = d.pagamentos || []; d.pagamentos.push({ id: uid(), ...val }); });
             setPagar(null);
+          }} />
+      )}
+      {lancar && (
+        <ModalLancamento dados={lancar} onClose={() => setLancar(null)}
+          onSave={(val) => {
+            update((d) => { d.lancamentos.push({ id: uid(), cambistaId: lancar.cambistaId, data: val.data, positivo: val.valor, movimentacao: null, pct: val.pct, obs: "" }); });
+            registrarAuditoria("criar_lancamento", { cambista: lancar.nome, valor: val.valor });
+            setLancar(null);
           }} />
       )}
       {detalhe && (
@@ -911,6 +935,38 @@ function ModalPagamento({ dados, onClose, onSave }) {
         <Campo label="Data"><input type="date" value={f.data} onChange={(e) => set("data", e.target.value)} className={inp} /></Campo>
       </div>
       <Campo label="Observação (opcional)"><input value={f.obs} onChange={(e) => set("obs", e.target.value)} className={inp} placeholder="pix, dinheiro..." /></Campo>
+    </Modal>
+  );
+}
+
+function ModalLancamento({ dados, onClose, onSave }) {
+  const [f, setF] = useState({ valor: "", data: iso(new Date()), pctTxt: String(Math.round((dados.comissaoPadrao || 0) * 1000) / 10) });
+  const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
+  const valorNum = toNum(f.valor);
+  const pctNum = toNum(f.pctTxt) / 100;
+  const comissao = valorNum * pctNum;
+  const liquido = valorNum - comissao;
+  const salvar = () => {
+    if (String(f.valor).trim() === "" || isNaN(parseFloat(String(f.valor).replace(",", ".")))) return alert("Informe o valor movimentado (use negativo se ele perdeu).");
+    if (pctNum < 0 || pctNum > 1) return alert("A comissão deve estar entre 0% e 100%.");
+    onSave({ valor: valorNum, data: f.data, pct: pctNum });
+  };
+  return (
+    <Modal titulo={`Novo Lançamento — ${dados.nome}`} onClose={onClose} onSave={salvar}>
+      <div className="grid grid-cols-2 gap-3">
+        <Campo label="Valor Movimentado (R$)">
+          <input value={f.valor} onChange={(e) => set("valor", e.target.value)} className={inp} inputMode="decimal" placeholder="ex.: 500 ou -200" autoFocus />
+        </Campo>
+        <Campo label="Data"><input type="date" value={f.data} onChange={(e) => set("data", e.target.value)} className={inp} /></Campo>
+      </div>
+      <Campo label="Comissão (%)">
+        <input value={f.pctTxt} onChange={(e) => set("pctTxt", e.target.value)} className={inp} inputMode="decimal" />
+      </Campo>
+      <div className="bg-slate-50 rounded-lg p-3 text-sm space-y-1.5">
+        <div className="flex justify-between"><span className="text-slate-500">Comissão</span><span className={`font-semibold tabular-nums ${comissao < 0 ? "text-rose-600" : "text-orange-600"}`}>{brl(comissao)}</span></div>
+        <div className="flex justify-between border-t border-slate-200 pt-1.5"><span className="text-slate-500">{liquido >= 0 ? "Líquido da Casa" : "Saldo Devedor"}</span><span className={`font-bold tabular-nums ${liquido >= 0 ? "text-orange-600" : "text-rose-600"}`}>{brl(liquido)}</span></div>
+      </div>
+      <div className="text-xs text-slate-400">Use um valor <span className="font-medium text-rose-500">negativo</span> se o cambista perdeu na conta. Nesse caso o resultado vira saldo devedor (vermelho).</div>
     </Modal>
   );
 }
