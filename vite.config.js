@@ -6,12 +6,13 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: false,
-    host: true
+    host: '0.0.0.0'
   },
   build: {
     outDir: 'dist',
-    sourcemap: true,
-    minify: 'terser',
+    sourcemap: false,
+    minify: 'esbuild',
+    target: 'es2020',
     rollupOptions: {
       output: {
         manualChunks: {
@@ -22,6 +23,7 @@ export default defineConfig({
     }
   },
   preview: {
-    port: 4173
+    port: 4173,
+    host: '0.0.0.0'
   }
 })
