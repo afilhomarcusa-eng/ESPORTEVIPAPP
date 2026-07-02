@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import * as XLSX from "xlsx";
 import {
   ResponsiveContainer, AreaChart, Area, BarChart, Bar, LineChart, Line,
@@ -9,7 +10,7 @@ import {
   Plus, Trash2, Pencil, X, Check, AlertTriangle, ChevronLeft,
   ChevronRight, Wallet, Percent, Coins, RotateCcw, Search, Circle,
   FileSpreadsheet, Target, Banknote, Clock, CheckCircle2, Trophy, Upload, Printer, Send,
-  Calendar, BarChart3, Loader2, Inbox, CheckCircle, XCircle, Info, MoreVertical,
+  Calendar, BarChart3, Loader2, Inbox, CheckCircle, XCircle, Info, MoreVertical, Eye, EyeOff, Lock,
 } from "lucide-react";
 
 /* ======================== UTILITÁRIOS ======================== */
@@ -621,11 +622,11 @@ function exportarExcel({ db }) {
   wsP["!cols"] = [{ wch: 12 }, { wch: 16 }, { wch: 14 }, { wch: 24 }];
   XLSX.utils.book_append_sheet(wb, wsP, "Pagamentos");
 
-  const gHead = ["Data", "Categoria", "Descrição", "Valor (R$)"];
-  const gRows = (db.gastos || []).map((g) => [parse(g.data), g.categoria || "", g.descricao || "", g.valor]);
+  const gHead = ["Data", "Categoria", "Responsável", "Descrição", "Valor (R$)"];
+  const gRows = (db.gastos || []).map((g) => [parse(g.data), g.categoria || "", g.responsavel || "", g.descricao || "", g.valor]);
   const wsG = XLSX.utils.aoa_to_sheet([gHead, ...gRows]);
-  gRows.forEach((_, i) => { const r = i + 2; if (wsG[`A${r}`]) wsG[`A${r}`].z = "dd/mm/yyyy"; if (wsG[`D${r}`]) wsG[`D${r}`].z = MOEDA; });
-  wsG["!cols"] = [{ wch: 12 }, { wch: 18 }, { wch: 25 }, { wch: 14 }];
+  gRows.forEach((_, i) => { const r = i + 2; if (wsG[`A${r}`]) wsG[`A${r}`].z = "dd/mm/yyyy"; if (wsG[`E${r}`]) wsG[`E${r}`].z = MOEDA; });
+  wsG["!cols"] = [{ wch: 12 }, { wch: 18 }, { wch: 18 }, { wch: 25 }, { wch: 14 }];
   XLSX.utils.book_append_sheet(wb, wsG, "Gastos");
 
   XLSX.writeFile(wb, `esportevipapp-${iso(new Date())}.xlsx`);
@@ -679,8 +680,65 @@ function importarExcel(file, update, aoTerminar) {
   reader.readAsArrayBuffer(file);
 }
 
+/* ======================== TELA DE ACESSO (senha) ======================== */
+const SENHA_ACESSO = "luan0202";
+function LoginScreen({ onUnlock }) {
+  const [senha, setSenha] = useState("");
+  const [mostrar, setMostrar] = useState(false);
+  const [erro, setErro] = useState(false);
+
+  const entrar = (ev) => {
+    ev.preventDefault();
+    if (senha === SENHA_ACESSO) {
+      try { localStorage.setItem("esportevipapp:unlocked", "1"); } catch {}
+      onUnlock();
+    } else {
+      setErro(true);
+      setSenha("");
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 font-sans">
+      <form onSubmit={entrar} className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-modal animate-scale-in">
+        <div className="text-center mb-6">
+          <div className="w-14 h-14 rounded-full bg-orange-500 flex items-center justify-center text-slate-900 font-black text-lg mx-auto mb-3">
+            <Lock size={22} />
+          </div>
+          <div className="text-xl font-black tracking-tight"><span className="text-white">ESPORTEVIP</span><span className="text-orange-500">APP</span></div>
+          <div className="text-xs text-slate-400 mt-1">Acesso restrito — informe a senha</div>
+        </div>
+
+        <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Senha</label>
+        <div className="relative">
+          <input
+            type={mostrar ? "text" : "password"}
+            value={senha}
+            onChange={(ev) => { setSenha(ev.target.value); setErro(false); }}
+            autoFocus
+            className={`w-full h-11 bg-slate-950 border rounded-lg pl-3 pr-10 text-sm text-white outline-none transition focus:ring-2 focus:ring-orange-500/40 ${erro ? "border-rose-500" : "border-slate-700 focus:border-orange-500"}`}
+            placeholder="Digite a senha"
+          />
+          <button type="button" onClick={() => setMostrar((v) => !v)} aria-label={mostrar ? "Ocultar senha" : "Mostrar senha"}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors">
+            {mostrar ? <EyeOff size={16} /> : <Eye size={16} />}
+          </button>
+        </div>
+        {erro && <p className="text-xs text-rose-400 mt-2">Senha incorreta. Tente novamente.</p>}
+
+        <button type="submit" className="w-full mt-5 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-lg py-2.5 text-sm transition-colors duration-150">
+          Entrar
+        </button>
+      </form>
+    </div>
+  );
+}
+
 /* ======================== COMPONENTE RAIZ ======================== */
 export default function App() {
+  const [autenticado, setAutenticado] = useState(() => {
+    try { return localStorage.getItem("esportevipapp:unlocked") === "1"; } catch { return false; }
+  });
   const [db, setDb] = useState(null);
   const [aba, setAba] = useState("dashboard");
   const [gran, setGran] = useState("mes");
@@ -711,6 +769,8 @@ export default function App() {
 
   const totais = useMemo(() => agrega(lancsPeriodo, cambById), [lancsPeriodo, cambById]);
   const totaisPrev = useMemo(() => agrega(lancsPrev, cambById), [lancsPrev, cambById]);
+
+  if (!autenticado) return <LoginScreen onUnlock={() => setAutenticado(true)} />;
 
   if (!db) return (
     <div className="min-h-screen flex items-center justify-center bg-slate-950 text-orange-500">
@@ -775,6 +835,10 @@ export default function App() {
                 <RotateCcw size={12} /> Limpar exemplo
               </button>
             )}
+            <button onClick={() => { try { localStorage.removeItem("esportevipapp:unlocked"); } catch {} setAutenticado(false); }}
+              className="mt-1 w-full flex items-center justify-center gap-2 text-[11px] text-slate-500 hover:text-slate-300 border border-slate-800 rounded-lg py-2 transition-colors">
+              <Lock size={12} /> Bloquear acesso
+            </button>
           </div>
         </aside>
 
@@ -894,21 +958,21 @@ const KPI_CORES = {
   amber: "bg-amber-50 text-amber-600",
   orange: "bg-orange-50 text-orange-600",
   indigo: "bg-indigo-50 text-indigo-600",
-  emerald: "bg-emerald-50 text-emerald-600",
+  emerald: "bg-emerald-100 text-emerald-700",
   rose: "bg-rose-50 text-rose-600",
 };
 
 function Kpi({ titulo, valor, delta, icon: Ic, cor = "orange", inverso = false, corValor = "text-slate-900" }) {
   const bom = inverso ? (delta ?? 0) <= 0 : (delta ?? 0) >= 0;
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-card p-5 min-w-0 transition-shadow duration-200 hover:shadow-card-hover">
+    <div className="bg-white rounded-xl border border-slate-200 shadow-card p-4 sm:p-5 min-w-0 transition-shadow duration-200 hover:shadow-card-hover">
       <div className="flex items-center justify-between mb-3">
         <span className={eyebrow}>{titulo}</span>
-        <span className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${KPI_CORES[cor] || KPI_CORES.orange}`}><Ic size={18} /></span>
+        <span className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 ${KPI_CORES[cor] || KPI_CORES.orange}`}><Ic size={18} /></span>
       </div>
-      <div className={`text-2xl md:text-[28px] font-bold tabular-nums tracking-tight truncate ${corValor}`}>{valor}</div>
+      <div title={valor} className={`text-lg sm:text-xl lg:text-2xl font-bold tabular-nums tracking-tight truncate ${corValor}`}>{valor}</div>
       {delta != null && isFinite(delta) && (
-        <div className={`mt-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${bom ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
+        <div className={`mt-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${bom ? "bg-emerald-100 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
           {bom ? <TrendingUp size={12} /> : <TrendingDown size={12} />} {pct(Math.abs(delta))}
         </div>
       )}
@@ -928,7 +992,7 @@ function delta(a, b) { if (!b) return b === 0 && a === 0 ? 0 : null; return (a -
 /* ======================== BADGE (pill de status unificado) ======================== */
 function Badge({ tone = "neutral", icon: Ic, children, className = "" }) {
   const tones = {
-    success: "bg-emerald-50 text-emerald-700",
+    success: "bg-emerald-100 text-emerald-800",
     danger: "bg-rose-50 text-rose-700",
     neutral: "bg-slate-100 text-slate-600",
     warning: "bg-amber-50 text-amber-700",
@@ -952,6 +1016,60 @@ function EmptyState({ icon: Ic = Inbox, titulo, descricao, acao }) {
       {descricao && <div className="text-xs text-slate-400 mt-1 max-w-xs">{descricao}</div>}
       {acao && <div className="mt-4">{acao}</div>}
     </div>
+  );
+}
+
+/* ======================== MENU DE AÇÕES (portal — escapa do clipping de containers com scroll) ======================== */
+function ActionMenu({ children }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, right: 0 });
+  const btnRef = useRef(null);
+  const menuRef = useRef(null);
+
+  const toggle = (ev) => {
+    ev.stopPropagation();
+    if (!open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+    }
+    setOpen((v) => !v);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const handlePointerDown = (ev) => {
+      if (menuRef.current?.contains(ev.target) || btnRef.current?.contains(ev.target)) return;
+      setOpen(false);
+    };
+    const handleKeyDown = (ev) => { if (ev.key === "Escape") setOpen(false); };
+    const handleScrollOrResize = () => setOpen(false);
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("scroll", handleScrollOrResize, true);
+    window.addEventListener("resize", handleScrollOrResize);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("scroll", handleScrollOrResize, true);
+      window.removeEventListener("resize", handleScrollOrResize);
+    };
+  }, [open]);
+
+  return (
+    <>
+      <button ref={btnRef} onClick={toggle} title="Ações" aria-label="Abrir menu de ações" aria-expanded={open}
+        className={`p-1.5 rounded-md transition-colors duration-150 ${open ? "bg-slate-100 text-slate-700" : "text-slate-500 hover:bg-slate-100"}`}>
+        <MoreVertical size={16} />
+      </button>
+      {open && createPortal(
+        <div ref={menuRef} style={{ position: "fixed", top: pos.top, right: pos.right }}
+          className="w-44 bg-white border border-slate-200 rounded-lg shadow-modal z-[100] py-1 animate-scale-in origin-top-right"
+          onClick={() => setOpen(false)}>
+          {children}
+        </div>,
+        document.body
+      )}
+    </>
   );
 }
 
@@ -1057,13 +1175,12 @@ function Dashboard({ db, update, cambById, lancs, totais, totaisPrev, gran, ref_
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 md:gap-5">
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 md:gap-5">
         <Kpi titulo="Resultado Bruto" valor={money(totais.bruto)} delta={delta(totais.bruto, totaisPrev.bruto)} icon={Coins} cor="slate" corValor={totais.bruto >= 0 ? "text-emerald-600" : "text-rose-600"} />
         <Kpi titulo="Comissões" valor={money(totais.comissao)} delta={delta(totais.comissao, totaisPrev.comissao)} icon={Percent} cor="amber" inverso corValor={totais.comissao >= 0 ? "text-emerald-600" : "text-rose-600"} />
         <Kpi titulo="Gastos" valor={money(gastosPeriodo)} delta={delta(gastosPeriodo, gastosPrev)} icon={DollarSign} cor="amber" inverso corValor={gastosPeriodo >= 0 ? "text-emerald-600" : "text-rose-600"} />
         <Kpi titulo="Líquido Casa" valor={money(liquidoCasa)} delta={delta(liquidoCasa, liquidoCasaPrev)} icon={Wallet} cor={liquidoCasa >= 0 ? "emerald" : "rose"} corValor={liquidoCasa >= 0 ? "text-emerald-600" : "text-rose-600"} />
         <Kpi titulo="Cambistas Ativos" valor={`${cambistasAtivos}`} icon={Users} cor="indigo" />
-        {totais.holdMedio != null && <Kpi titulo="Hold Médio" valor={pct(totais.holdMedio)} icon={Percent} cor="orange" />}
       </div>
 
       {metaPeriodo != null && (
@@ -1351,28 +1468,25 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range, gerarRelatorio 
                   </td>
                   <td className="px-4 py-3" onClick={(ev) => ev.stopPropagation()}>
                     <div className="flex gap-1 justify-end">
-                      <div className="relative group/menu">
-                        <button title="Ações" aria-label="Abrir menu de ações" className="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 transition-colors duration-150"><MoreVertical size={16} /></button>
-                        <div className="hidden group-hover/menu:block absolute right-0 mt-1 w-44 bg-white border border-slate-200 rounded-lg shadow-modal z-10 py-1 animate-scale-in origin-top-right">
-                          <button onClick={() => setLancar({ cambistaId: c.id, nome: c.nome, comissaoPadrao: c.comissaoPadrao })} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors duration-150"><Plus size={14} className="text-orange-600" /> Novo lançamento</button>
-                          <button onClick={() => gerarRelatorio && gerarRelatorio(c.id)} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors duration-150"><FileText size={14} className="text-emerald-600" /> Relatório semanal</button>
-                          <button onClick={() => setPagar({ cambistaId: c.id, nome: c.nome, valor: saldo > 0 ? saldo.toFixed(2) : "", data: iso(new Date()), obs: "" })} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors duration-150"><Banknote size={14} className="text-orange-600" /> Registrar pagamento</button>
-                          <button onClick={() => setEditar({ ...c })} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors duration-150"><Pencil size={14} /> Editar</button>
-                          <div className="border-t border-slate-100 my-1"></div>
-                          <button onClick={() => {
-                            if (confirm(`CUIDADO: Excluir ${c.nome}?\n\nTodos os lançamentos dele também serão removidos. Esta ação é irreversível.\n\nClique OK para confirmar.`)) {
-                              if (confirm(`Tem certeza? Clique OK NOVAMENTE para deletar ${c.nome}.`)) {
-                                registrarAuditoria("deletar_cambista", { id: c.id, nome: c.nome });
-                                update((d) => {
-                                  d.cambistas = d.cambistas.filter((x) => x.id !== c.id);
-                                  d.lancamentos = d.lancamentos.filter((l) => l.cambistaId !== c.id);
-                                });
-                                toast(`${c.nome} foi removido.`, "success");
-                              }
+                      <ActionMenu>
+                        <button onClick={() => setLancar({ cambistaId: c.id, nome: c.nome, comissaoPadrao: c.comissaoPadrao })} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors duration-150"><Plus size={14} className="text-orange-600" /> Novo lançamento</button>
+                        <button onClick={() => gerarRelatorio && gerarRelatorio(c.id)} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors duration-150"><FileText size={14} className="text-emerald-600" /> Relatório semanal</button>
+                        <button onClick={() => setPagar({ cambistaId: c.id, nome: c.nome, valor: saldo > 0 ? saldo.toFixed(2) : "", data: iso(new Date()), obs: "" })} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors duration-150"><Banknote size={14} className="text-orange-600" /> Registrar pagamento</button>
+                        <button onClick={() => setEditar({ ...c })} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors duration-150"><Pencil size={14} /> Editar</button>
+                        <div className="border-t border-slate-100 my-1"></div>
+                        <button onClick={() => {
+                          if (confirm(`CUIDADO: Excluir ${c.nome}?\n\nTodos os lançamentos dele também serão removidos. Esta ação é irreversível.\n\nClique OK para confirmar.`)) {
+                            if (confirm(`Tem certeza? Clique OK NOVAMENTE para deletar ${c.nome}.`)) {
+                              registrarAuditoria("deletar_cambista", { id: c.id, nome: c.nome });
+                              update((d) => {
+                                d.cambistas = d.cambistas.filter((x) => x.id !== c.id);
+                                d.lancamentos = d.lancamentos.filter((l) => l.cambistaId !== c.id);
+                              });
+                              toast(`${c.nome} foi removido.`, "success");
                             }
-                          }} className="w-full text-left px-4 py-2 text-sm text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition-colors duration-150"><Trash2 size={14} /> Deletar</button>
-                        </div>
-                      </div>
+                          }
+                        }} className="w-full text-left px-4 py-2 text-sm text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition-colors duration-150"><Trash2 size={14} /> Deletar</button>
+                      </ActionMenu>
                     </div>
                   </td>
                 </tr>
@@ -1644,6 +1758,7 @@ function GastosControl({ db, update, gran, ref_, range }) {
   const [descricao, setDescricao] = useState("");
   const [valor, setValor] = useState("");
   const [data, setData] = useState(iso(new Date()));
+  const [responsavel, setResponsavel] = useState("");
   const [editId, setEditId] = useState(null);
   const [busca, setBusca] = useState("");
   const [paginaGastos, setPaginaGastos] = useState(1);
@@ -1668,10 +1783,26 @@ function GastosControl({ db, update, gran, ref_, range }) {
 
   const dados_agregados = useMemo(() => agregar(gastosPeriodo), [gastosPeriodo]);
 
+  const nomesResponsaveis = useMemo(() => {
+    const nomes = new Set((db.gastos || []).map((g) => (g.responsavel || "").trim()).filter(Boolean));
+    return [...nomes].sort();
+  }, [db.gastos]);
+
+  const porResponsavel = useMemo(() => {
+    const mapa = {};
+    for (const g of gastosPeriodo) {
+      const nome = (g.responsavel || "").trim() || "Não informado";
+      mapa[nome] = (mapa[nome] || 0) + g.valor;
+    }
+    return Object.entries(mapa)
+      .map(([nome, total]) => ({ nome, total }))
+      .sort((a, b) => b.total - a.total);
+  }, [gastosPeriodo]);
+
   const lista_filtrada = useMemo(() => {
     return (db.gastos || [])
       .filter((g) => dentro({ data: g.data }, s, e))
-      .filter((g) => !busca || g.descricao.toLowerCase().includes(busca.toLowerCase()) || g.categoria.toLowerCase().includes(busca.toLowerCase()))
+      .filter((g) => !busca || g.descricao.toLowerCase().includes(busca.toLowerCase()) || g.categoria.toLowerCase().includes(busca.toLowerCase()) || (g.responsavel || "").toLowerCase().includes(busca.toLowerCase()))
       .sort((a, b) => b.data.localeCompare(a.data));
   }, [db.gastos, busca, s, e]);
 
@@ -1698,15 +1829,16 @@ function GastosControl({ db, update, gran, ref_, range }) {
   const adicionar = () => {
     const v = parseFloat(String(valor).replace(",", "."));
     if (!categoria.trim()) return toast("Selecione uma categoria.", "error");
+    if (!responsavel.trim()) return toast("Informe quem gastou.", "error");
     if (!descricao.trim()) return toast("Informe a descrição.", "error");
     if (isNaN(v) || v <= 0) return toast("Informe um valor válido.", "error");
 
     update((d) => {
       if (editId) {
         const i = d.gastos.findIndex((x) => x.id === editId);
-        d.gastos[i] = { id: editId, categoria, descricao: descricao.trim(), valor: v, data };
+        d.gastos[i] = { id: editId, categoria, descricao: descricao.trim(), valor: v, data, responsavel: responsavel.trim() };
       } else {
-        d.gastos.push({ id: uid(), categoria, descricao: descricao.trim(), valor: v, data });
+        d.gastos.push({ id: uid(), categoria, descricao: descricao.trim(), valor: v, data, responsavel: responsavel.trim() });
       }
     });
     toast(editId ? "Gasto atualizado." : "Gasto adicionado.", "success");
@@ -1715,6 +1847,7 @@ function GastosControl({ db, update, gran, ref_, range }) {
     setDescricao("");
     setValor("");
     setData(iso(new Date()));
+    setResponsavel("");
     setEditId(null);
   };
 
@@ -1733,12 +1866,19 @@ function GastosControl({ db, update, gran, ref_, range }) {
 
       <div className={cardBox}>
         <div className={titSec}>{editId ? "Editar Gasto" : "Novo Gasto"}</div>
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 items-end">
           <div>
             <label className={lbl}>Categoria</label>
             <select value={categoria} onChange={(e) => setCategoria(e.target.value)} className={inp}>
               {CATEGORIAS_GASTOS.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
             </select>
+          </div>
+          <div>
+            <label className={lbl}>Quem gastou</label>
+            <input value={responsavel} onChange={(e) => setResponsavel(e.target.value)} className={inp} placeholder="Nome do responsável" list="lista-responsaveis" />
+            <datalist id="lista-responsaveis">
+              {nomesResponsaveis.map((nome) => <option key={nome} value={nome} />)}
+            </datalist>
           </div>
           <div>
             <label className={lbl}>Descrição</label>
@@ -1788,6 +1928,34 @@ function GastosControl({ db, update, gran, ref_, range }) {
         </div>
       </div>
 
+      {porResponsavel.length > 0 && (
+        <div className={cardBox}>
+          <div className="flex items-center justify-between mb-3">
+            <div className={titSec + " mb-0"}>Gasto por Responsável</div>
+            <div className="text-xs text-slate-500">quem mais gastou no período</div>
+          </div>
+          <div className="space-y-2.5">
+            {porResponsavel.map((r, idx) => {
+              const pct_r = dados_agregados.total > 0 ? (r.total / dados_agregados.total) * 100 : 0;
+              return (
+                <div key={r.nome}>
+                  <div className="flex items-center justify-between text-sm mb-1">
+                    <span className="text-slate-600 font-medium flex items-center gap-2">
+                      {idx === 0 && <Badge tone="warning">Maior gasto</Badge>}
+                      {r.nome}
+                    </span>
+                    <span className="text-slate-900 font-bold tabular-nums">{brl(r.total)}</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                    <div className="h-full rounded-full transition-all duration-500 bg-orange-500" style={{ width: `${pct_r}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div className={cardBox}>
         <div className={titSec}>Tendência de Gastos (Últimos Períodos)</div>
         <div className="h-56 w-full">
@@ -1807,7 +1975,7 @@ function GastosControl({ db, update, gran, ref_, range }) {
       <div className="bg-white rounded-xl border border-slate-200 shadow-card overflow-hidden">
         <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-200 flex-wrap">
           <Search size={15} className="text-slate-400" />
-          <input value={busca} onChange={(e) => { setBusca(e.target.value); setPaginaGastos(1); }} placeholder="Buscar por categoria ou descrição..." className="text-sm flex-1 outline-none bg-transparent placeholder:text-slate-400" />
+          <input value={busca} onChange={(e) => { setBusca(e.target.value); setPaginaGastos(1); }} placeholder="Buscar por categoria, responsável ou descrição..." className="text-sm flex-1 outline-none bg-transparent placeholder:text-slate-400" />
           <span className="text-xs text-slate-500 tabular-nums">{lista_filtrada.length} gasto(s)</span>
         </div>
         <div className="max-h-[520px] overflow-auto">
@@ -1816,6 +1984,7 @@ function GastosControl({ db, update, gran, ref_, range }) {
               <tr className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 border-b border-slate-200">
                 <th className="px-4 py-2.5">Data</th>
                 <th className="px-4 py-2.5">Categoria</th>
+                <th className="px-4 py-2.5">Responsável</th>
                 <th className="px-4 py-2.5">Descrição</th>
                 <th className="px-4 py-2.5 text-right">Valor</th>
                 <th className="px-4 py-2.5"></th>
@@ -1826,11 +1995,12 @@ function GastosControl({ db, update, gran, ref_, range }) {
                 <tr key={g.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors duration-150">
                   <td className="px-4 py-2.5 tabular-nums text-slate-600">{fmtData(g.data)}</td>
                   <td className="px-4 py-2.5 text-slate-700 font-medium">{g.categoria}</td>
+                  <td className="px-4 py-2.5 text-slate-600">{g.responsavel || <span className="text-slate-400">Não informado</span>}</td>
                   <td className="px-4 py-2.5 text-slate-600">{g.descricao}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-slate-900">{brl(g.valor)}</td>
                   <td className="px-4 py-2.5">
                     <div className="flex gap-1 justify-end">
-                      <button onClick={() => { setEditId(g.id); setCategoria(g.categoria); setDescricao(g.descricao); setValor(String(g.valor)); setData(g.data); window.scrollTo({ top: 0, behavior: "smooth" }); }} aria-label={`Editar gasto ${g.descricao}`} title="Editar" className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 transition-colors duration-150"><Pencil size={14} /></button>
+                      <button onClick={() => { setEditId(g.id); setCategoria(g.categoria); setDescricao(g.descricao); setValor(String(g.valor)); setData(g.data); setResponsavel(g.responsavel || ""); window.scrollTo({ top: 0, behavior: "smooth" }); }} aria-label={`Editar gasto ${g.descricao}`} title="Editar" className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 transition-colors duration-150"><Pencil size={14} /></button>
                       <button onClick={() => { update((d) => { d.gastos = d.gastos.filter((x) => x.id !== g.id); }); toast("Gasto removido.", "success"); }} aria-label={`Excluir gasto ${g.descricao}`} title="Excluir" className="p-1.5 rounded-md hover:bg-rose-50 text-rose-500 transition-colors duration-150"><Trash2 size={14} /></button>
                     </div>
                   </td>
@@ -1838,7 +2008,7 @@ function GastosControl({ db, update, gran, ref_, range }) {
               ))}
               {lista_filtrada.length === 0 && (
                 <tr>
-                  <td colSpan={5}>
+                  <td colSpan={6}>
                     <EmptyState icon={DollarSign} titulo="Nenhum gasto registrado" descricao="Nenhum gasto foi encontrado para este período ou filtro." />
                   </td>
                 </tr>
@@ -1847,7 +2017,7 @@ function GastosControl({ db, update, gran, ref_, range }) {
             {lista_filtrada.length > 0 && (
               <tfoot className="sticky bottom-0 bg-slate-50 border-t-2 border-slate-200">
                 <tr>
-                  <td colSpan={3} className="px-4 py-3 font-semibold text-slate-700">Total {busca ? "filtrado" : "do período"} ({lista_filtrada.length})</td>
+                  <td colSpan={4} className="px-4 py-3 font-semibold text-slate-700">Total {busca ? "filtrado" : "do período"} ({lista_filtrada.length})</td>
                   <td className="px-4 py-3 text-right tabular-nums font-bold text-slate-900">{brl(lista_filtrada.reduce((a, g) => a + g.valor, 0))}</td>
                   <td></td>
                 </tr>
