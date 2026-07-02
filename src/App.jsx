@@ -9,7 +9,7 @@ import {
   Plus, Trash2, Pencil, X, Check, AlertTriangle, ChevronLeft,
   ChevronRight, Wallet, Percent, Coins, RotateCcw, Search, Circle,
   FileSpreadsheet, Target, Banknote, Clock, CheckCircle2, Trophy, Upload, Printer, Send,
-  Calendar, BarChart3,
+  Calendar, BarChart3, Loader2, Inbox, CheckCircle, XCircle, Info,
 } from "lucide-react";
 
 /* ======================== UTILITÁRIOS ======================== */
@@ -34,6 +34,19 @@ const MESES_L = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","
 
 const CORES_LARANJA = ["#f97316","#fb923c","#fed7aa","#0ea5e9","#8b5cf6","#e11d48","#14b8a6","#ec4899","#84cc16","#6366f1"];
 const CATEGORIAS_GASTOS = ["Alimentação", "Transporte", "Infraestrutura", "Marketing", "Comissões", "Outros"];
+
+/* ======================== TOKENS DE DESIGN ======================== */
+// Cores centralizadas para uso em Recharts (stroke/fill exigem hex, não aceitam classes Tailwind)
+const THEME_CHART = {
+  positivo: "#16a34a",
+  negativo: "#e11d48",
+  neutro: "#94a3b8",
+  aviso: "#f59e0b",
+  primario: "#f97316",
+  grid: "#eef2f7",
+};
+const CHART_TOOLTIP_STYLE = { borderRadius: 10, border: "1px solid #e2e8f0", fontSize: 12, boxShadow: "0 4px 12px -2px rgb(15 23 42 / 0.08)" };
+const CHART_AXIS_TICK = { fontSize: 11, fill: "#94a3b8" };
 
 /* ======================== VALIDAÇÕES ======================== */
 const validarTelefone = (tel) => {
@@ -726,38 +739,39 @@ export default function App() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-800" style={{ fontFamily: "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif" }}>
+    <div className="min-h-screen bg-slate-100 text-slate-800 font-sans">
       <div className="h-1 bg-orange-600" />
       <div className="flex">
-        <aside className="hidden lg:flex w-56 shrink-0 bg-slate-900 text-slate-300 flex-col sticky top-0 h-screen border-r border-slate-800">
-          <div className="px-5 py-5 border-b border-slate-800">
-            <div className="flex items-center gap-2">
-              <div className="w-9 h-9 rounded-full bg-orange-500 flex items-center justify-center text-slate-900 font-black text-xs">EA</div>
-              <div>
-                <div className="text-white font-semibold leading-tight">ESPORTEVIPAPP</div>
-                <div className="text-[11px] text-orange-400">gestão de negócios</div>
+        <aside className="hidden lg:flex w-60 shrink-0 bg-slate-900 text-slate-300 flex-col sticky top-0 h-screen border-r border-slate-800">
+          <div className="px-5 py-5 border-b border-slate-800/80">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-full bg-orange-500 flex items-center justify-center text-slate-900 font-black text-xs shrink-0">EA</div>
+              <div className="min-w-0">
+                <div className="text-white font-semibold leading-tight tracking-tight">ESPORTEVIPAPP</div>
+                <div className="text-[11px] text-orange-400/90">gestão de negócios</div>
               </div>
             </div>
           </div>
-          <nav className="p-3 flex-1 space-y-1">
+          <nav className="p-3 flex-1 space-y-0.5">
             {nav.map((n) => {
               const Ic = n.icon; const on = aba === n.id;
               return (
                 <button key={n.id} onClick={() => irAba(n.id)}
-                  className={`w-full flex items-center gap-3 px-3 py-2 border-l-2 rounded-r-lg text-sm transition ${on ? "bg-orange-500/15 text-orange-300 font-medium border-orange-400" : "text-slate-400 hover:bg-slate-800 hover:text-slate-200 border-transparent"}`}>
-                  <Ic size={18} /> {n.nome}
+                  className={`group w-full flex items-center gap-3 pl-3 pr-3 py-2.5 rounded-lg text-sm transition-all duration-150 relative ${on ? "bg-orange-500/10 text-orange-300 font-medium" : "text-slate-400 hover:bg-slate-800/70 hover:text-slate-200"}`}>
+                  {on && <span className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full bg-orange-400" />}
+                  <Ic size={18} className={`shrink-0 transition-transform duration-150 ${on ? "" : "group-hover:scale-105"}`} /> {n.nome}
                 </button>
               );
             })}
           </nav>
-          <div className="p-3 border-t border-slate-800">
-            <div className="flex items-center gap-2 text-[11px] text-slate-500 px-2">
-              <Circle size={8} className={salvando ? "text-amber-400 fill-amber-400" : "text-orange-400 fill-orange-400"} />
-              {salvando ? "Salvando" : "Tudo salvo"}
+          <div className="p-3 border-t border-slate-800/80">
+            <div className="flex items-center gap-2 text-[11px] text-slate-500 px-2 py-1.5">
+              <Circle size={7} className={salvando ? "text-amber-400 fill-amber-400" : "text-emerald-400 fill-emerald-400"} />
+              {salvando ? "Salvando..." : "Tudo salvo"}
             </div>
             {db.exemplo && (
               <button onClick={() => { if (confirm("Zerar todos os dados de exemplo e começar do zero?")) setDb({ cambistas: [], lancamentos: [], pagamentos: [], gastos: [], metaMensal: 10000, exemplo: false, version: 4 }); }}
-                className="mt-2 w-full flex items-center justify-center gap-2 text-[11px] text-slate-400 hover:text-rose-300 border border-slate-800 rounded-lg py-2">
+                className="mt-1 w-full flex items-center justify-center gap-2 text-[11px] text-slate-500 hover:text-rose-300 hover:border-rose-900/50 border border-slate-800 rounded-lg py-2 transition-colors">
                 <RotateCcw size={12} /> Limpar exemplo
               </button>
             )}
@@ -765,11 +779,11 @@ export default function App() {
         </aside>
 
         <div className="flex-1 min-w-0">
-          <header className="sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-slate-200 px-4 sm:px-6 py-3 flex items-center gap-3 flex-wrap">
+          <header className="sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-slate-200 px-4 sm:px-6 py-3.5 flex items-center gap-3 flex-wrap">
             <div className="lg:hidden w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center text-slate-900 font-black text-[11px] shrink-0">EA</div>
             <div className="mr-auto min-w-0">
-              <div className="text-base sm:text-lg font-semibold text-slate-900 capitalize truncate">{nav.find((n) => n.id === aba)?.nome}</div>
-              {db.exemplo && <div className="text-[11px] text-amber-600 hidden sm:block">Você está vendo dados de exemplo. Edite ou limpe quando quiser.</div>}
+              <div className="text-lg sm:text-xl font-bold tracking-tight text-slate-900 truncate">{nav.find((n) => n.id === aba)?.nome}</div>
+              {db.exemplo && <div className="text-[11px] text-amber-600 hidden sm:block mt-0.5">Você está vendo dados de exemplo. Edite ou limpe quando quiser.</div>}
             </div>
             {inativos.length > 0 && (
               <button onClick={() => setShowInativeModal(true)} className="inline-flex items-center gap-2 text-xs bg-amber-50 border border-amber-200 text-amber-700 rounded-lg px-2.5 py-1.5 hover:bg-amber-100 transition">
@@ -780,7 +794,7 @@ export default function App() {
               opts={aba === "relatorios" ? [["semana","Semanal"],["tudo","Tudo"]] : undefined} />
           </header>
 
-          <main className="p-4 sm:p-6 pb-24 lg:pb-6 max-w-[1200px] mx-auto min-w-0">
+          <main className="p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8 max-w-[1400px] mx-auto min-w-0">
             {aba === "dashboard" && (
               <Dashboard db={db} update={update} cambById={cambById} lancs={lancsPeriodo}
                 totais={totais} totaisPrev={totaisPrev} gran={gran} ref_={ref} range={[s, e]} />
@@ -803,8 +817,9 @@ export default function App() {
           const Ic = n.icon; const on = aba === n.id;
           return (
             <button key={n.id} onClick={() => irAba(n.id)}
-              className={`flex-1 flex flex-col items-center gap-1 py-2.5 text-[10px] font-medium transition ${on ? "text-orange-400" : "text-slate-500 hover:text-slate-300"}`}>
-              <Ic size={20} className={on ? "scale-110 transition-transform" : "transition-transform"} /> {n.curto}
+              className={`flex-1 flex flex-col items-center gap-1 py-2.5 text-[10px] font-medium transition-colors duration-150 relative ${on ? "text-orange-400" : "text-slate-500 hover:text-slate-300"}`}>
+              {on && <span className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-[3px] rounded-full bg-orange-400" />}
+              <Ic size={20} className={`transition-transform duration-150 ${on ? "scale-110" : ""}`} /> {n.curto}
             </button>
           );
         })}
@@ -813,6 +828,7 @@ export default function App() {
       {showInativeModal && (
         <ModalInactivos inativos={inativos} onClose={() => setShowInativeModal(false)} />
       )}
+      <Toaster />
     </div>
   );
 }
@@ -900,13 +916,84 @@ function Kpi({ titulo, valor, delta, icon: Ic, cor = "orange", inverso = false, 
   );
 }
 
-const cardBox = "bg-white rounded-xl border border-slate-200 shadow-sm p-4 min-w-0";
-const titSec = "text-sm font-semibold text-slate-700 mb-3";
-const inp = "w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500";
+const cardBox = "bg-white rounded-xl border border-slate-200 shadow-card p-5 min-w-0 transition-shadow duration-200";
+const titSec = "text-sm font-semibold text-slate-800 mb-3";
+const eyebrow = "text-[11px] font-semibold uppercase tracking-wider text-slate-500";
+const inp = "w-full h-10 border border-slate-200 rounded-lg px-3 text-sm outline-none transition focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 placeholder:text-slate-400";
 const lbl = "block text-xs font-medium text-slate-500 mb-1";
 
 function money(v) { return brl(v); }
 function delta(a, b) { if (!b) return b === 0 && a === 0 ? 0 : null; return (a - b) / Math.abs(b); }
+
+/* ======================== BADGE (pill de status unificado) ======================== */
+function Badge({ tone = "neutral", icon: Ic, children, className = "" }) {
+  const tones = {
+    success: "bg-emerald-50 text-emerald-700",
+    danger: "bg-rose-50 text-rose-700",
+    neutral: "bg-slate-100 text-slate-600",
+    warning: "bg-amber-50 text-amber-700",
+    info: "bg-indigo-50 text-indigo-600",
+  };
+  return (
+    <span className={`inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2.5 py-1 whitespace-nowrap ${tones[tone] || tones.neutral} ${className}`}>
+      {Ic && <Ic size={12} />} {children}
+    </span>
+  );
+}
+
+/* ======================== EMPTY STATE ======================== */
+function EmptyState({ icon: Ic = Inbox, titulo, descricao, acao }) {
+  return (
+    <div className="flex flex-col items-center justify-center text-center py-14 px-4">
+      <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mb-3">
+        <Ic size={22} />
+      </div>
+      <div className="text-sm font-semibold text-slate-600">{titulo}</div>
+      {descricao && <div className="text-xs text-slate-400 mt-1 max-w-xs">{descricao}</div>}
+      {acao && <div className="mt-4">{acao}</div>}
+    </div>
+  );
+}
+
+/* ======================== TOASTS (feedback de sucesso/erro, sem dependência externa) ======================== */
+const toastListeners = new Set();
+let toastSeq = 0;
+function toast(message, type = "success") {
+  const id = ++toastSeq;
+  const item = { id, message, type };
+  toastListeners.forEach((fn) => fn((prev) => [...prev, item]));
+  setTimeout(() => {
+    toastListeners.forEach((fn) => fn((prev) => prev.filter((t) => t.id !== id)));
+  }, 3500);
+}
+function Toaster() {
+  const [items, setItems] = useState([]);
+  useEffect(() => {
+    toastListeners.add(setItems);
+    return () => toastListeners.delete(setItems);
+  }, []);
+
+  const styles = {
+    success: { icon: CheckCircle, bg: "bg-emerald-600", text: "text-white" },
+    error: { icon: XCircle, bg: "bg-rose-600", text: "text-white" },
+    info: { icon: Info, bg: "bg-slate-900", text: "text-white" },
+  };
+
+  return (
+    <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2 max-w-sm w-full pointer-events-none">
+      {items.map((t) => {
+        const s = styles[t.type] || styles.success;
+        const Ic = s.icon;
+        return (
+          <div key={t.id} className={`animate-toast-in pointer-events-auto flex items-center gap-2 rounded-lg px-4 py-3 shadow-modal text-sm font-medium ${s.bg} ${s.text}`}>
+            <Ic size={16} className="shrink-0" />
+            <span className="min-w-0">{t.message}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 /* ======================== DASHBOARD ======================== */
 function Dashboard({ db, update, cambById, lancs, totais, totaisPrev, gran, ref_, range }) {
