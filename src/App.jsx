@@ -9,7 +9,7 @@ import {
   Plus, Trash2, Pencil, X, Check, AlertTriangle, ChevronLeft,
   ChevronRight, Wallet, Percent, Coins, RotateCcw, Search, Circle,
   FileSpreadsheet, Target, Banknote, Clock, CheckCircle2, Trophy, Upload, Printer, Send,
-  Calendar, BarChart3, Loader2, Inbox, CheckCircle, XCircle, Info,
+  Calendar, BarChart3, Loader2, Inbox, CheckCircle, XCircle, Info, MoreVertical,
 } from "lucide-react";
 
 /* ======================== UTILITÁRIOS ======================== */
@@ -1240,7 +1240,8 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range, gerarRelatorio 
     setImportando(true);
     importarExcel(file, update, (sucesso) => {
       setImportando(false);
-      if (!sucesso) alert("Não consegui ler essa planilha. Confira se ela segue o mesmo modelo exportado pelo sistema.");
+      if (!sucesso) toast("Não consegui ler essa planilha. Confira se ela segue o mesmo modelo exportado pelo sistema.", "error");
+      else toast("Planilha importada com sucesso.", "success");
     });
   };
 
@@ -1251,82 +1252,89 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range, gerarRelatorio 
   };
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between flex-wrap gap-2">
+    <div className="space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3 flex-wrap">
           <div className="text-sm text-slate-500">Período: <span className="font-medium text-slate-700">{custom ? `${fmtData(dtDe)} a ${fmtData(dtAte)}` : rotulo}</span></div>
           <div className="flex rounded-lg border border-slate-200 overflow-hidden w-fit">
             {[["semana","Semanal"],["quinzena","Quinzenal"],["mes","Mensal"],["ano","Anual"]].map(([id, lab]) => (
-              <button key={id} onClick={() => setPeriodDates(id)} className="px-2.5 py-1.5 text-xs font-medium hover:bg-slate-50 border-r border-slate-200 last:border-0 text-slate-600 transition">{lab}</button>
+              <button key={id} onClick={() => setPeriodDates(id)} className="px-2.5 py-1.5 text-xs font-medium hover:bg-slate-50 border-r border-slate-200 last:border-0 text-slate-600 transition-colors duration-150">{lab}</button>
             ))}
           </div>
-          <div className={`flex items-center gap-1.5 text-xs border rounded-lg px-2.5 py-1.5 ${custom ? "border-orange-300 bg-orange-50" : "border-slate-200 bg-white"}`}>
-            <span className="text-slate-400">De</span>
+          <div className={`flex items-center gap-1.5 text-xs border rounded-lg px-2.5 py-1.5 transition-colors duration-150 ${custom ? "border-orange-300 bg-orange-50" : "border-slate-200 bg-white"}`}>
+            <span className="text-slate-500">De</span>
             <input type="date" value={dtDe} onChange={(ev) => setDtDe(ev.target.value)} className="outline-none bg-transparent text-slate-700" />
-            <span className="text-slate-400">Até</span>
+            <span className="text-slate-500">Até</span>
             <input type="date" value={dtAte} onChange={(ev) => setDtAte(ev.target.value)} className="outline-none bg-transparent text-slate-700" />
           </div>
-          {custom && <button onClick={() => { setDtDe(""); setDtAte(""); }} className="text-xs text-slate-400 hover:text-rose-500">limpar</button>}
+          {custom && <button onClick={() => { setDtDe(""); setDtAte(""); }} className="text-xs text-slate-400 hover:text-rose-500 transition-colors">limpar</button>}
         </div>
         <div className="flex gap-2 flex-wrap">
           <input ref={fileRef} type="file" accept=".xlsx" className="hidden" onChange={(ev) => { aoImportar(ev.target.files[0]); ev.target.value = ""; }} />
           <button onClick={() => fileRef.current?.click()} disabled={importando}
-            className="inline-flex items-center gap-2 text-sm border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 rounded-lg px-3 py-2">
-            <Upload size={15} /> {importando ? "Importando" : "Importar Planilha"}
+            className="inline-flex items-center gap-2 text-sm border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 rounded-lg px-3 py-2 transition-colors duration-150 disabled:opacity-50">
+            {importando ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />} {importando ? "Importando" : "Importar Planilha"}
           </button>
           <button onClick={() => exportarExcel({ db })}
-            className="inline-flex items-center gap-2 text-sm border border-orange-200 bg-orange-50 hover:bg-orange-100 text-orange-700 rounded-lg px-3 py-2">
+            className="inline-flex items-center gap-2 text-sm border border-orange-200 bg-orange-50 hover:bg-orange-100 text-orange-700 rounded-lg px-3 py-2 transition-colors duration-150">
             <FileSpreadsheet size={15} /> Exportar Planilha
           </button>
           <button onClick={() => setEditar({ id: null, nome: "", contato: "", comissaoPadrao: 0.1, ativo: true })}
-            className="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-lg px-3 py-2 shadow-sm transition">
+            className="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-lg px-3 py-2 shadow-card transition-colors duration-150">
             <Plus size={16} /> Novo Cambista
           </button>
         </div>
       </div>
 
       {linhas.length > 0 && (
-        <div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-              <div className="text-xs font-medium text-emerald-700 mb-1">Total a Receber</div>
-              <div className="text-2xl font-bold text-emerald-900 tabular-nums">{brl(linhas.reduce((a, r) => a + Math.max(0, r.receber), 0))}</div>
-              <div className="text-[11px] text-emerald-600 mt-1">cambistas para cobrar</div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-5">
+          <div className="rounded-xl border border-slate-200 shadow-card bg-white p-5 transition-shadow duration-200 hover:shadow-card-hover">
+            <div className="flex items-center justify-between mb-3">
+              <span className={eyebrow}>Total a Receber</span>
+              <span className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-emerald-50 text-emerald-600"><TrendingUp size={18} /></span>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <div className="text-xs font-medium text-slate-700 mb-1">Total Recebido</div>
-              <div className="text-2xl font-bold text-slate-900 tabular-nums">{brl(linhas.reduce((a, r) => a + r.pago, 0))}</div>
-              <div className="text-[11px] text-slate-600 mt-1">já quitado no período</div>
+            <div className="text-2xl md:text-[28px] font-bold tabular-nums tracking-tight text-emerald-700">{brl(linhas.reduce((a, r) => a + Math.max(0, r.receber), 0))}</div>
+            <div className="text-xs text-slate-500 mt-1.5">cambistas para cobrar</div>
+          </div>
+          <div className="rounded-xl border border-slate-200 shadow-card bg-white p-5 transition-shadow duration-200 hover:shadow-card-hover">
+            <div className="flex items-center justify-between mb-3">
+              <span className={eyebrow}>Total Recebido</span>
+              <span className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-slate-100 text-slate-600"><Banknote size={18} /></span>
             </div>
-            <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
-              <div className="text-xs font-medium text-rose-700 mb-1">Taxa de Inadimplência</div>
-              <div className="text-2xl font-bold text-rose-900 tabular-nums">{linhas.length > 0 ? ((linhas.filter((r) => r.receber > 0.01).length / linhas.length) * 100).toFixed(1) : "0"}%</div>
-              <div className="text-[11px] text-rose-600 mt-1">{linhas.filter((r) => r.receber > 0.01).length} de {linhas.length} cambistas</div>
+            <div className="text-2xl md:text-[28px] font-bold tabular-nums tracking-tight text-slate-900">{brl(linhas.reduce((a, r) => a + r.pago, 0))}</div>
+            <div className="text-xs text-slate-500 mt-1.5">já quitado no período</div>
+          </div>
+          <div className="rounded-xl border border-slate-200 shadow-card bg-white p-5 transition-shadow duration-200 hover:shadow-card-hover">
+            <div className="flex items-center justify-between mb-3">
+              <span className={eyebrow}>Taxa de Inadimplência</span>
+              <span className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-rose-50 text-rose-600"><AlertTriangle size={18} /></span>
             </div>
+            <div className="text-2xl md:text-[28px] font-bold tabular-nums tracking-tight text-rose-700">{linhas.length > 0 ? ((linhas.filter((r) => r.receber > 0.01).length / linhas.length) * 100).toFixed(1) : "0"}%</div>
+            <div className="text-xs text-slate-500 mt-1.5">{linhas.filter((r) => r.receber > 0.01).length} de {linhas.length} cambistas</div>
           </div>
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-xs text-slate-500 border-b border-slate-200 bg-slate-50">
-                <th className="px-4 py-3 font-medium">Cambista</th>
-                <th className="px-4 py-3 font-medium text-right">Bruto</th>
-                <th className="px-4 py-3 font-medium text-right">Comissão</th>
-                <th className="px-4 py-3 font-medium text-right">Pago</th>
-                <th className="px-4 py-3 font-medium text-right">Saldo</th>
-                <th className="px-4 py-3 font-medium text-center">Status</th>
+              <tr className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 border-b border-slate-200 bg-slate-50/80">
+                <th className="px-4 py-3">Cambista</th>
+                <th className="px-4 py-3 text-right">Bruto</th>
+                <th className="px-4 py-3 text-right">Comissão</th>
+                <th className="px-4 py-3 text-right">Pago</th>
+                <th className="px-4 py-3 text-right">Saldo</th>
+                <th className="px-4 py-3 text-center">Status</th>
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
             <tbody>
               {linhas.map(({ c, bruto, comissao, pago, saldo, receber, n }) => (
-                <tr key={c.id} onClick={() => setDetalhe(c)} className="group border-b border-slate-100 last:border-0 hover:bg-orange-50/40 cursor-pointer transition-colors">
+                <tr key={c.id} onClick={() => setDetalhe(c)} className="group border-b border-slate-100 last:border-0 hover:bg-orange-50/40 cursor-pointer transition-colors duration-150">
                   <td className="px-4 py-3">
-                    <div className="font-medium text-slate-800 flex items-center gap-2">{c.nome} {!c.ativo && <span className="text-[10px] bg-slate-100 text-slate-500 rounded px-1.5 py-0.5">inativo</span>}</div>
-                    <div className="text-xs text-slate-400">{c.contato || "sem contato"}, padrão {pct(c.comissaoPadrao)}</div>
+                    <div className="font-medium text-slate-800 flex items-center gap-2">{c.nome} {!c.ativo && <Badge tone="neutral">inativo</Badge>}</div>
+                    <div className="text-xs text-slate-500">{c.contato || "sem contato"}, padrão {pct(c.comissaoPadrao)}</div>
                   </td>
                   <td className={`px-4 py-3 text-right tabular-nums ${bruto < 0 ? "text-rose-600" : "text-slate-700"}`}>{brl(bruto)}</td>
                   <td className={`px-4 py-3 text-right tabular-nums font-semibold ${comissao < 0 ? "text-rose-600" : "text-slate-900"}`}>{brl(comissao)}</td>
@@ -1334,23 +1342,23 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range, gerarRelatorio 
                   <td className={`px-4 py-3 text-right tabular-nums font-semibold ${receber < 0 ? "text-emerald-600" : receber > 0.01 ? "text-rose-600" : "text-slate-700"}`}>{brl(saldo)}</td>
                   <td className="px-4 py-3 text-center">
                     {receber < 0 ? (
-                      <span className="inline-flex items-center gap-1 text-[11px] bg-emerald-50 text-emerald-700 rounded-full px-2 py-1"><CheckCircle2 size={12} /> Devedor</span>
+                      <Badge tone="success" icon={CheckCircle2}>Devedor</Badge>
                     ) : saldo <= 0.01 ? (
-                      <span className="inline-flex items-center gap-1 text-[11px] bg-slate-100 text-slate-700 rounded-full px-2 py-1"><CheckCircle2 size={12} /> Em dia</span>
+                      <Badge tone="neutral" icon={CheckCircle2}>Em dia</Badge>
                     ) : (
-                      <span className="inline-flex items-center gap-1 text-[11px] bg-rose-50 text-rose-700 rounded-full px-2 py-1"><AlertTriangle size={12} /> Pendente</span>
+                      <Badge tone="danger" icon={AlertTriangle}>Pendente</Badge>
                     )}
                   </td>
                   <td className="px-4 py-3" onClick={(ev) => ev.stopPropagation()}>
                     <div className="flex gap-1 justify-end">
                       <div className="relative group/menu">
-                        <button title="Ações" className="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 transition"><svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg></button>
-                        <div className="hidden group-hover/menu:block absolute right-0 mt-1 w-40 bg-white border border-slate-200 rounded-lg shadow-lg z-10 py-1">
-                          <button onClick={() => setLancar({ cambistaId: c.id, nome: c.nome, comissaoPadrao: c.comissaoPadrao })} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"><Plus size={14} className="text-orange-600" /> Novo lançamento</button>
-                          <button onClick={() => gerarRelatorio && gerarRelatorio(c.id)} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"><FileText size={14} className="text-emerald-600" /> Relatório semanal</button>
-                          <button onClick={() => setPagar({ cambistaId: c.id, nome: c.nome, valor: saldo > 0 ? saldo.toFixed(2) : "", data: iso(new Date()), obs: "" })} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"><Banknote size={14} className="text-orange-600" /> Registrar pagamento</button>
-                          <button onClick={() => setEditar({ ...c })} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"><Pencil size={14} /> Editar</button>
-                          <div className="border-t border-slate-100"></div>
+                        <button title="Ações" aria-label="Abrir menu de ações" className="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 transition-colors duration-150"><MoreVertical size={16} /></button>
+                        <div className="hidden group-hover/menu:block absolute right-0 mt-1 w-44 bg-white border border-slate-200 rounded-lg shadow-modal z-10 py-1 animate-scale-in origin-top-right">
+                          <button onClick={() => setLancar({ cambistaId: c.id, nome: c.nome, comissaoPadrao: c.comissaoPadrao })} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors duration-150"><Plus size={14} className="text-orange-600" /> Novo lançamento</button>
+                          <button onClick={() => gerarRelatorio && gerarRelatorio(c.id)} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors duration-150"><FileText size={14} className="text-emerald-600" /> Relatório semanal</button>
+                          <button onClick={() => setPagar({ cambistaId: c.id, nome: c.nome, valor: saldo > 0 ? saldo.toFixed(2) : "", data: iso(new Date()), obs: "" })} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors duration-150"><Banknote size={14} className="text-orange-600" /> Registrar pagamento</button>
+                          <button onClick={() => setEditar({ ...c })} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors duration-150"><Pencil size={14} /> Editar</button>
+                          <div className="border-t border-slate-100 my-1"></div>
                           <button onClick={() => {
                             if (confirm(`CUIDADO: Excluir ${c.nome}?\n\nTodos os lançamentos dele também serão removidos. Esta ação é irreversível.\n\nClique OK para confirmar.`)) {
                               if (confirm(`Tem certeza? Clique OK NOVAMENTE para deletar ${c.nome}.`)) {
@@ -1359,16 +1367,23 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range, gerarRelatorio 
                                   d.cambistas = d.cambistas.filter((x) => x.id !== c.id);
                                   d.lancamentos = d.lancamentos.filter((l) => l.cambistaId !== c.id);
                                 });
+                                toast(`${c.nome} foi removido.`, "success");
                               }
                             }
-                          }} className="w-full text-left px-4 py-2 text-sm text-rose-600 hover:bg-rose-50 flex items-center gap-2"><Trash2 size={14} /> Deletar</button>
+                          }} className="w-full text-left px-4 py-2 text-sm text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition-colors duration-150"><Trash2 size={14} /> Deletar</button>
                         </div>
                       </div>
                     </div>
                   </td>
                 </tr>
               ))}
-              {linhas.length === 0 && <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400 text-sm">Nenhum cambista cadastrado. Clique em "Novo Cambista".</td></tr>}
+              {linhas.length === 0 && (
+                <tr>
+                  <td colSpan={7}>
+                    <EmptyState icon={Users} titulo="Nenhum cambista cadastrado" descricao='Clique em "Novo Cambista" para começar a registrar lançamentos.' />
+                  </td>
+                </tr>
+              )}
             </tbody>
             {linhas.length > 0 && (
               <tfoot className="bg-slate-50 border-t-2 border-slate-200">
@@ -1404,6 +1419,7 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range, gerarRelatorio 
               if (val.id) { const i = d.cambistas.findIndex((x) => x.id === val.id); d.cambistas[i] = val; }
               else d.cambistas.push({ ...val, id: uid(), criadoEm: iso(new Date()) });
             });
+            toast(val.id ? "Cambista atualizado." : "Cambista criado.", "success");
             setEditar(null);
           }} />
       )}
@@ -1411,6 +1427,7 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range, gerarRelatorio 
         <ModalPagamento dados={pagar} onClose={() => setPagar(null)}
           onSave={(val) => {
             update((d) => { d.pagamentos = d.pagamentos || []; d.pagamentos.push({ id: uid(), ...val }); });
+            toast("Pagamento registrado.", "success");
             setPagar(null);
           }} />
       )}
@@ -1419,6 +1436,7 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range, gerarRelatorio 
           onSave={(val) => {
             update((d) => { d.lancamentos.push({ id: uid(), cambistaId: lancar.cambistaId, data: val.data, positivo: val.valor, movimentacao: null, pct: val.pct, obs: "" }); });
             registrarAuditoria("criar_lancamento", { cambista: lancar.nome, valor: val.valor });
+            toast("Lançamento registrado.", "success");
             setLancar(null);
           }} />
       )}
@@ -1477,7 +1495,7 @@ function ModalPagamento({ dados, onClose, onSave }) {
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
   const salvar = () => {
     const v = parseFloat(String(f.valor).replace(",", "."));
-    if (isNaN(v) || v <= 0) return alert("Informe um valor válido.");
+    if (isNaN(v) || v <= 0) return toast("Informe um valor válido.", "error");
     onSave({ cambistaId: f.cambistaId, data: f.data, valor: v, obs: f.obs });
   };
   return (
@@ -1499,8 +1517,8 @@ function ModalLancamento({ dados, onClose, onSave }) {
   const comissao = valorNum * pctNum;
   const liquido = valorNum - comissao;
   const salvar = () => {
-    if (String(f.valor).trim() === "" || isNaN(parseFloat(String(f.valor).replace(",", ".")))) return alert("Informe o valor movimentado (use negativo se ele perdeu).");
-    if (pctNum < 0 || pctNum > 1) return alert("A comissão deve estar entre 0% e 100%.");
+    if (String(f.valor).trim() === "" || isNaN(parseFloat(String(f.valor).replace(",", ".")))) return toast("Informe o valor movimentado (use negativo se ele perdeu).", "error");
+    if (pctNum < 0 || pctNum > 1) return toast("A comissão deve estar entre 0% e 100%.", "error");
     onSave({ valor: valorNum, data: f.data, pct: pctNum });
   };
   return (
@@ -1524,7 +1542,7 @@ function ModalLancamento({ dados, onClose, onSave }) {
 }
 
 function MiniKpi({ rotulo, v, cor = "text-slate-900" }) {
-  return <div className="bg-slate-50 rounded-lg p-3 min-w-0"><div className="text-[10px] uppercase tracking-wide text-slate-400">{rotulo}</div><div className={`text-lg font-bold tabular-nums truncate ${cor}`}>{v}</div></div>;
+  return <div className="bg-slate-50 rounded-lg p-3 min-w-0"><div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{rotulo}</div><div className={`text-lg font-bold tabular-nums truncate ${cor}`}>{v}</div></div>;
 }
 
 function ModalDetalheCambista({ cambista, lancamentos, pagamentos, onClose }) {
@@ -1555,32 +1573,35 @@ function ModalDetalheCambista({ cambista, lancamentos, pagamentos, onClose }) {
   const saldo = ag.comissao - pagoNoPeriodo;
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 sticky top-0 bg-white z-10">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-full bg-orange-500 text-white font-bold flex items-center justify-center shrink-0">{(cambista.nome || "?").trim()[0]?.toUpperCase() || "?"}</div>
+    <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-modal animate-scale-in" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 sticky top-0 bg-white/95 backdrop-blur z-10">
+          <div className="flex items-center gap-4 min-w-0">
+            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 text-white font-bold text-xl flex items-center justify-center shrink-0 shadow-card">{(cambista.nome || "?").trim()[0]?.toUpperCase() || "?"}</div>
             <div className="min-w-0">
-              <div className="font-semibold text-slate-900 truncate">{cambista.nome}</div>
-              <div className="text-xs text-slate-400">{cambista.contato || "sem contato"}</div>
+              <div className="font-bold text-lg text-slate-900 truncate flex items-center gap-2">
+                {cambista.nome}
+                {!cambista.ativo && <Badge tone="neutral">inativo</Badge>}
+              </div>
+              <div className="text-xs text-slate-500 mt-0.5">{cambista.contato || "sem contato"} &middot; padrão {pct(cambista.comissaoPadrao)}</div>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 shrink-0"><X size={18} /></button>
+          <button onClick={onClose} aria-label="Fechar" className="p-2 rounded-lg hover:bg-slate-100 text-slate-500 shrink-0 transition-colors duration-150"><X size={18} /></button>
         </div>
         <div className="p-6 space-y-5">
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex rounded-lg border border-slate-200 overflow-hidden w-fit">
               {[["semana","Semana"],["mes","Mês"],["tudo","Tudo"]].map(([id, lab]) => (
-                <button key={id} onClick={() => { setGran(id); setDtDe(""); setDtAte(""); }} className={`px-3 py-1.5 text-xs font-medium ${!custom && gran === id ? "bg-slate-900 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>{lab}</button>
+                <button key={id} onClick={() => { setGran(id); setDtDe(""); setDtAte(""); }} className={`px-3 py-1.5 text-xs font-medium transition-colors duration-150 ${!custom && gran === id ? "bg-slate-900 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>{lab}</button>
               ))}
             </div>
-            <div className={`flex items-center gap-1.5 text-xs border rounded-lg px-2.5 py-1.5 ${custom ? "border-orange-300 bg-orange-50" : "border-slate-200 bg-white"}`}>
-              <span className="text-slate-400">De</span>
+            <div className={`flex items-center gap-1.5 text-xs border rounded-lg px-2.5 py-1.5 transition-colors duration-150 ${custom ? "border-orange-300 bg-orange-50" : "border-slate-200 bg-white"}`}>
+              <span className="text-slate-500">De</span>
               <input type="date" value={dtDe} onChange={(ev) => setDtDe(ev.target.value)} className="outline-none bg-transparent text-slate-700" />
-              <span className="text-slate-400">Até</span>
+              <span className="text-slate-500">Até</span>
               <input type="date" value={dtAte} onChange={(ev) => setDtAte(ev.target.value)} className="outline-none bg-transparent text-slate-700" />
             </div>
-            {custom && <button onClick={() => { setDtDe(""); setDtAte(""); }} className="text-xs text-slate-400 hover:text-rose-500">limpar</button>}
+            {custom && <button onClick={() => { setDtDe(""); setDtAte(""); }} className="text-xs text-slate-400 hover:text-rose-500 transition-colors">limpar</button>}
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -1594,7 +1615,7 @@ function ModalDetalheCambista({ cambista, lancamentos, pagamentos, onClose }) {
             <div className="flex items-center justify-between mb-3">
               <div className={titSec + " mb-0"}>Histórico por Dia</div>
               <div className="text-right">
-                <div className="text-[10px] uppercase tracking-wide text-slate-400">Saldo Total</div>
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Saldo Total</div>
                 <div className={`text-lg font-bold tabular-nums ${ag.bruto >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{ag.bruto >= 0 ? "+" : ""}{brl(ag.bruto)}</div>
               </div>
             </div>
@@ -1603,12 +1624,12 @@ function ModalDetalheCambista({ cambista, lancamentos, pagamentos, onClose }) {
                 <div key={d.data} className="flex items-center justify-between py-2.5">
                   <span className="text-sm text-slate-600 tabular-nums">
                     {fmtData(d.data)}
-                    {d.n > 1 && <span className="text-xs text-slate-400 ml-2">({d.n} lançamentos)</span>}
+                    {d.n > 1 && <span className="text-xs text-slate-500 ml-2">({d.n} lançamentos)</span>}
                   </span>
                   <span className={`text-sm font-bold tabular-nums ${d.total >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{d.total >= 0 ? "+" : ""}{brl(d.total)}</span>
                 </div>
               ))}
-              {porDia.length === 0 && <div className="py-8 text-center text-slate-400 text-sm">Nenhum lançamento neste período.</div>}
+              {porDia.length === 0 && <EmptyState icon={Inbox} titulo="Nenhum lançamento neste período" />}
             </div>
           </div>
         </div>
