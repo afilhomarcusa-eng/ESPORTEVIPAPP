@@ -306,6 +306,200 @@ function classificarRisco(score) {
   return { classificacao: "Alto Risco", cor: "rose" };
 }
 
+/* ======================== ANÁLISE DE GASTOS ======================== */
+const GASTOS_THRESHOLDS = {
+  desviosPadrao: 2,
+  percentualCrescimento: 0.2,
+  toleranciaValorRedondo: 0.01,
+  minMesesParaAnalise: 3,
+  limiteGastoPercent: 80,
+};
+
+function agrupamentoPorMes(gastos) {
+  const grupos = {};
+  for (const g of gastos) {
+    const data = parse(g.data);
+    const mes = `${data.getFullYear()}-${pad(data.getMonth() + 1)}`;
+    if (!grupos[mes]) grupos[mes] = { data: new Date(data.getFullYear(), data.getMonth(), 1), gastos: [] };
+    grupos[mes].gastos.push(g);
+  }
+  return Object.entries(grupos)
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([mes, g]) => ({ mes, ...g, total: g.gastos.reduce((a, x) => a + x.valor, 0) }));
+}
+
+function analisarGastos(gastos) {
+  if (!gastos || gastos.length === 0) return { meses: [], alertas: [] };
+
+  const meses = agrupamentoPorMes(gastos);
+  if (meses.length < GASTOS_THRESHOLDS.minMesesParaAnalise) {
+    return {
+      meses,
+      alertas: [{ tipo: "aviso", severidade: "baixo", titulo: "Histórico curto", descricao: `Apenas ${meses.length} meses de dados. Análise com baixa confiança estatística.` }],
+    };
+  }
+
+  const alertas = [];
+  const totais = meses.map((m) => m.total);
+  const estat = calcularEstatisticas(totais);
+
+  for (let i = 0; i < meses.length; i++) {
+    const zScore = (totais[i] - estat.media) / Math.max(0.01, estat.desvPadrao);
+    if (Math.abs(zScore) > GASTOS_THRESHOLDS.desviosPadrao) {
+      alertas.push({
+        tipo: "outlierMes",
+        severidade: totais[i] > estat.media ? "medio" : "alto",
+        mes: meses[i],
+        titulo: totais[i] > estat.media ? "Mês com gasto anormalmente alto" : "Mês com gasto anormalmente baixo",
+        descricao: `Mês ${meses[i].mes}: R$ ${brl(totais[i])} (${(zScore > 0 ? "+" : "")}${zScore.toFixed(2)} desvios). Esperado: R$ ${brl(estat.media)} ± R$ ${brl(estat.desvPadrao)}`,
+        valor: totais[i],
+      });
+    }
+
+    if (i > 0) {
+      const variacao = (totais[i] - totais[i - 1]) / Math.max(0.01, totais[i - 1]);
+      if (Math.abs(variacao) > GASTOS_THRESHOLDS.percentualCrescimento) {
+        alertas.push({
+          tipo: "pico",
+          severidade: variacao > 0 ? "medio" : "baixo",
+          titulo: variacao > 0 ? "Pico abrupto de gastos" : "Queda abrupta de gastos",
+          descricao: `${meses[i].mes} vs ${meses[i - 1].mes}: ${variacao > 0 ? "+" : ""}${(variacao * 100).toFixed(1)}% (de R$ ${brl(totais[i - 1])} para R$ ${brl(totais[i])})`,
+          mes: meses[i],
+          percentual: variacao * 100,
+        });
+      }
+    }
+  }
+
+  for (const categoria of CATEGORIAS_GASTOS) {
+    const gastosCat = meses.map((m) => m.gastos.filter((g) => g.categoria === categoria).reduce((a, x) => a + x.valor, 0));
+    const naoZero = gastosCat.filter((v) => v > 0);
+    if (naoZero.length < 2) continue;
+
+    const estatCat = calcularEstatisticas(naoZero);
+    for (let i = 0; i < gastosCat.length; i++) {
+      if (gastosCat[i] === 0) continue;
+      const z = (gastosCat[i] - estatCat.media) / Math.max(0.01, estatCat.desvPadrao);
+      if (z > GASTOS_THRESHOLDS.desviosPadrao) {
+        alertas.push({
+          tipo: "picoCategoria",
+          severidade: "medio",
+          titulo: `${categoria} com pico anormal`,
+          descricao: `${meses[i].mes}: R$ ${brl(gastosCat[i])} (${(z).toFixed(2)} desvios acima da média)`,
+          mes: meses[i],
+          categoria,
+          valor: gastosCat[i],
+        });
+      }
+    }
+  }
+
+  const valoresRedondos = meses.flatMap((m) =>
+    m.gastos.filter((g) => Math.abs(g.valor - Math.round(g.valor / 100) * 100) < 1).map((g) => ({ ...g, mes: m.mes }))
+  );
+  if (valoresRedondos.length > gastos.length * 0.3) {
+    alertas.push({
+      tipo: "valoresRedondos",
+      severidade: "baixo",
+      titulo: "Padrão anormal de valores redondos",
+      descricao: `${valoresRedondos.length} de ${gastos.length} gastos (${(valoresRedondos.length / gastos.length * 100).toFixed(1)}%) com valores redondos`,
+      gastos: valoresRedondos.slice(0, 5),
+    });
+  }
+
+  const gastosSemDesc = gastos.filter((g) => !g.descricao || g.descricao.trim().length < 3);
+  if (gastosSemDesc.length > 0) {
+    alertas.push({
+      tipo: "semDescricao",
+      severidade: "baixo",
+      titulo: "Gastos sem descrição adequada",
+      descricao: `${gastosSemDesc.length} gastos sem descrição ou com descrição muito curta`,
+      count: gastosSemDesc.length,
+    });
+  }
+
+  if (totais.length >= 3) {
+    const primeiroTerco = totais.slice(0, Math.floor(totais.length / 3)).reduce((a, v) => a + v, 0) / Math.floor(totais.length / 3);
+    const ultimoTerco = totais.slice(-Math.ceil(totais.length / 3)).reduce((a, v) => a + v, 0) / Math.ceil(totais.length / 3);
+    const crescimento = (ultimoTerco - primeiroTerco) / Math.max(0.01, primeiroTerco);
+    if (crescimento > GASTOS_THRESHOLDS.percentualCrescimento) {
+      alertas.push({
+        tipo: "tendenciaCrescente",
+        severidade: crescimento > 0.5 ? "alto" : "medio",
+        titulo: "Tendência sustentada de crescimento de gastos",
+        descricao: `Crescimento de ${(crescimento * 100).toFixed(1)}% ao longo do período (primeiro terço: R$ ${brl(primeiroTerco)}, último terço: R$ ${brl(ultimoTerco)})`,
+        percentual: crescimento * 100,
+      });
+    }
+  }
+
+  return { meses, alertas };
+}
+
+function calcularEficiencia(meses, cambistas, lancamentos, pagamentos) {
+  const eficiencias = [];
+
+  for (const mes of meses) {
+    const gastosMes = mes.total;
+
+    const lancsMes = lancamentos.filter((l) => {
+      const dataL = parse(l.data);
+      return dataL.getFullYear() === mes.data.getFullYear() && dataL.getMonth() === mes.data.getMonth();
+    });
+
+    const pagtosMes = pagamentos.filter((p) => {
+      const dataP = parse(p.data);
+      return dataP.getFullYear() === mes.data.getFullYear() && dataP.getMonth() === mes.data.getMonth();
+    });
+
+    let brutoMes = lancsMes.reduce((a, l) => a + l.positivo, 0);
+    let comissaoMes = 0;
+    let pagoMes = pagtosMes.reduce((a, p) => a + p.valor, 0);
+
+    for (const l of lancsMes) {
+      const c = cambistas.find((x) => x.id === l.cambistaId);
+      const p = l.pct != null ? l.pct : (c ? c.comissaoPadrao : 0);
+      comissaoMes += l.positivo * p;
+    }
+
+    const liquido = brutoMes - comissaoMes;
+    const percentualGasto = liquido > 0 ? (gastosMes / liquido) * 100 : 0;
+
+    eficiencias.push({
+      mes: mes.mes,
+      gastos: gastosMes,
+      liquido,
+      percentualGasto,
+      alerta: percentualGasto > GASTOS_THRESHOLDS.limiteGastoPercent,
+    });
+  }
+
+  return eficiencias;
+}
+
+function calcularProjecao(meses) {
+  if (meses.length < 2) return null;
+  const totais = meses.map((m) => m.total);
+  const n = totais.length;
+  const mediaX = (n - 1) / 2;
+  const mediaY = totais.reduce((a, v) => a + v, 0) / n;
+
+  let sumXY = 0;
+  let sumX2 = 0;
+  for (let i = 0; i < n; i++) {
+    const x = i - mediaX;
+    const y = totais[i] - mediaY;
+    sumXY += x * y;
+    sumX2 += x * x;
+  }
+
+  const slope = sumX2 !== 0 ? sumXY / sumX2 : 0;
+  const intercept = mediaY - slope * mediaX;
+  const proximoMes = intercept + slope * n;
+
+  return { proximoMes: Math.max(0, proximoMes), slope };
+}
+
 function cambistasInativos(cambistas, lancamentos, limite = 7) {
   const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
   return cambistas.filter((c) => c.ativo).map((c) => {
@@ -1672,6 +1866,19 @@ function Relatorios({ db, cambById, lancs, gran, ref_, preSelecionar, onConsumir
     );
   }
 
+  if (tipoRelatorio === "auditoriaGastos") {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex gap-2">
+            <button onClick={() => setTipoRelatorio("semanal")} className="text-sm px-4 py-2 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600">← Voltar ao Semanal</button>
+          </div>
+        </div>
+        <RelatorioAuditoriaGastos db={db} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -1681,7 +1888,10 @@ function Relatorios({ db, cambById, lancs, gran, ref_, preSelecionar, onConsumir
             <FileSpreadsheet size={13} /> Exportar Dados (.xlsx)
           </button>
           <button onClick={() => setTipoRelatorio("auditoria")} className="inline-flex items-center gap-2 text-xs border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg px-3 py-1.5">
-            <FileText size={13} /> Auditoria Completa
+            <FileText size={13} /> Auditoria Cambistas
+          </button>
+          <button onClick={() => setTipoRelatorio("auditoriaGastos")} className="inline-flex items-center gap-2 text-xs border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg px-3 py-1.5">
+            <FileText size={13} /> Auditoria Gastos
           </button>
         </div>
       </div>
@@ -1840,6 +2050,281 @@ function Relatorios({ db, cambById, lancs, gran, ref_, preSelecionar, onConsumir
               </div>
             )}
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ======================== RELATÓRIO DE AUDITORIA DE GASTOS ======================== */
+function RelatorioAuditoriaGastos({ db }) {
+  const auditoriaGastosPDFRef = useRef(null);
+  const [gerando, setGerando] = useState(false);
+
+  if (!db.gastos || db.gastos.length === 0) {
+    return (
+      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-center text-amber-700 text-sm">
+        Nenhum gasto registrado. Registre gastos para gerar o relatório de auditoria.
+      </div>
+    );
+  }
+
+  const { meses, alertas } = analisarGastos(db.gastos);
+  const eficiencias = calcularEficiencia(meses, db.cambistas || [], db.lancamentos || [], db.pagamentos || []);
+  const projecao = calcularProjecao(meses);
+
+  const gerarPdf = async () => {
+    if (!auditoriaGastosPDFRef.current) return;
+    setGerando(true);
+    try {
+      const canvas = await window.html2canvas(auditoriaGastosPDFRef.current, { backgroundColor: "#ffffff", scale: 2, useCORS: true });
+      const link = document.createElement("a");
+      link.download = `auditoria-gastos-${iso(new Date()).replace(/-/g, "-")}.png`;
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    } catch (err) {
+      alert("Erro ao gerar PDF: " + err.message);
+    } finally {
+      setGerando(false);
+    }
+  };
+
+  const salvarPdf = () => window.print();
+
+  const totalGasto = meses.reduce((a, m) => a + m.total, 0);
+  const mediaGasto = meses.length > 0 ? totalGasto / meses.length : 0;
+  const estatGastos = calcularEstatisticas(meses.map((m) => m.total));
+  const gastosMesCategoria = {};
+
+  for (const categoria of CATEGORIAS_GASTOS) {
+    gastosMesCategoria[categoria] = meses.map((m) => ({
+      mes: m.mes,
+      valor: m.gastos.filter((g) => g.categoria === categoria).reduce((a, x) => a + x.valor, 0),
+    }));
+  }
+
+  const categoriasRanking = CATEGORIAS_GASTOS.map((cat) => {
+    const gastosCat = db.gastos.filter((g) => g.categoria === cat);
+    const totalCat = gastosCat.reduce((a, g) => a + g.valor, 0);
+    const naoZeroMeses = meses.filter((m) => gastosMesCategoria[cat].find((x) => x.mes === m.mes && x.valor > 0)).length;
+    return { categoria: cat, total: totalCat, pct: (totalCat / totalGasto) * 100, count: gastosCat.length, naoZeroMeses };
+  }).sort((a, b) => b.total - a.total);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="text-sm text-slate-500">Análise Completa de Gastos - Histórico Inteiro</div>
+        <div className="flex gap-2 flex-wrap">
+          <button onClick={gerarPdf} disabled={gerando} className="inline-flex items-center gap-2 text-xs border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 rounded-lg px-3 py-1.5 disabled:opacity-50">
+            {gerando ? "Gerando..." : "Baixar como Imagem"}
+          </button>
+          <button onClick={salvarPdf} className="inline-flex items-center gap-2 text-xs border border-orange-200 bg-orange-50 hover:bg-orange-100 text-orange-700 rounded-lg px-3 py-1.5">
+            <Printer size={13} /> Salvar como PDF
+          </button>
+        </div>
+      </div>
+
+      <div id="auditoria-gastos-pdf-area" ref={auditoriaGastosPDFRef} className="bg-white p-8 space-y-6" style={{ minHeight: "1400px", fontFamily: "system-ui" }}>
+        <div className="text-center border-b pb-6">
+          <h1 className="text-4xl font-black text-slate-900">RELATÓRIO DE AUDITORIA DE GASTOS</h1>
+          <p className="text-sm text-slate-500 mt-2">Análise Completa do Histórico de Despesas</p>
+          <p className="text-xs text-slate-400 mt-1">Período: {meses.length > 0 ? `${fmtData(iso(meses[0].data))} a ${fmtData(iso(meses[meses.length - 1].data))}` : "Sem dados"} ({meses.length} meses)</p>
+        </div>
+
+        <div className="space-y-4">
+          <h2 className="text-2xl font-bold text-slate-900">Resumo Executivo</h2>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="border rounded-lg p-3 bg-slate-50">
+              <div className="text-xs text-slate-500 font-medium">Gasto Total</div>
+              <div className="text-lg font-bold text-slate-900 tabular-nums">{brl(totalGasto)}</div>
+            </div>
+            <div className="border rounded-lg p-3 bg-slate-50">
+              <div className="text-xs text-slate-500 font-medium">Média Mensal</div>
+              <div className="text-lg font-bold text-slate-900 tabular-nums">{brl(mediaGasto)}</div>
+            </div>
+            <div className="border rounded-lg p-3 bg-slate-50">
+              <div className="text-xs text-slate-500 font-medium">Desvio Padrão</div>
+              <div className="text-lg font-bold text-slate-900 tabular-nums">{brl(estatGastos.desvPadrao)}</div>
+            </div>
+            <div className="border rounded-lg p-3 bg-slate-50">
+              <div className="text-xs text-slate-500 font-medium">Meses Analisados</div>
+              <div className="text-lg font-bold text-slate-900 tabular-nums">{meses.length}</div>
+            </div>
+          </div>
+
+          {alertas.filter((a) => a.tipo === "aviso").length > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded p-3">
+              <p className="text-xs text-amber-700">{alertas.find((a) => a.tipo === "aviso")?.descricao}</p>
+            </div>
+          )}
+
+          {alertas.filter((a) => a.severidade === "alto").length > 0 && (
+            <div className="bg-rose-50 border border-rose-200 rounded p-3">
+              <h3 className="text-sm font-bold text-rose-800 mb-1">⚠️ Alertas Críticos</h3>
+              <ul className="text-xs text-rose-700 space-y-0.5">
+                {alertas.filter((a) => a.severidade === "alto").map((alerta, i) => (
+                  <li key={i}>• {alerta.titulo}: {alerta.descricao}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-4 page-break-before">
+          <h2 className="text-2xl font-bold text-slate-900">Histórico Completo de Gastos</h2>
+          <table className="w-full text-xs border-collapse">
+            <thead>
+              <tr className="bg-slate-100">
+                <th className="border p-1 text-left">Mês</th>
+                <th className="border p-1 text-right">Total</th>
+                <th className="border p-1 text-right">Var %</th>
+                <th className="border p-1 text-right">Lançamentos</th>
+                {CATEGORIAS_GASTOS.slice(0, 3).map((cat) => (
+                  <th key={cat} className="border p-1 text-right">{cat}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {meses.map((m, i) => (
+                <tr key={i} className="hover:bg-slate-50">
+                  <td className="border p-1">{m.mes}</td>
+                  <td className="border p-1 text-right tabular-nums font-bold">{brl(m.total)}</td>
+                  <td className="border p-1 text-right tabular-nums">
+                    {i > 0 ? ((((m.total - meses[i - 1].total) / meses[i - 1].total) * 100).toFixed(1) + "%") : "-"}
+                  </td>
+                  <td className="border p-1 text-right">{m.gastos.length}</td>
+                  {CATEGORIAS_GASTOS.slice(0, 3).map((cat) => {
+                    const valor = m.gastos.filter((g) => g.categoria === cat).reduce((a, x) => a + x.valor, 0);
+                    return <td key={cat} className="border p-1 text-right tabular-nums">{valor > 0 ? brl(valor) : "-"}</td>;
+                  })}
+                </tr>
+              ))}
+              <tr className="bg-slate-100 font-bold">
+                <td className="border p-1">Total</td>
+                <td className="border p-1 text-right tabular-nums">{brl(totalGasto)}</td>
+                <td className="border p-1"></td>
+                <td className="border p-1 text-right">{db.gastos.length}</td>
+                {CATEGORIAS_GASTOS.slice(0, 3).map((cat) => {
+                  const valor = db.gastos.filter((g) => g.categoria === cat).reduce((a, x) => a + x.valor, 0);
+                  return <td key={cat} className="border p-1 text-right tabular-nums">{valor > 0 ? brl(valor) : "-"}</td>;
+                })}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div className="space-y-4 page-break-before">
+          <h2 className="text-2xl font-bold text-slate-900">Análise de Anomalias</h2>
+          {alertas.length > 0 ? (
+            <div className="space-y-2">
+              {alertas.map((alerta, i) => (
+                <div key={i} className={`border-l-4 p-3 rounded ${alerta.severidade === "alto" ? "border-l-rose-500 bg-rose-50" : alerta.severidade === "medio" ? "border-l-amber-500 bg-amber-50" : "border-l-blue-500 bg-blue-50"}`}>
+                  <div className="text-sm font-bold">{alerta.titulo}</div>
+                  <div className="text-xs">{alerta.descricao}</div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-xs text-slate-500 p-3 bg-slate-50 rounded">Nenhuma anomalia detectada no histórico de gastos.</div>
+          )}
+        </div>
+
+        {eficiencias.length > 0 && (
+          <div className="space-y-4 page-break-before">
+            <h2 className="text-2xl font-bold text-slate-900">Eficiência Financeira</h2>
+            <div className="text-xs space-y-2">
+              {eficiencias.map((ef) => (
+                <div key={ef.mes} className={`p-2 border rounded ${ef.alerta ? "bg-rose-50 border-rose-200" : "bg-slate-50"}`}>
+                  <div className="font-bold">{ef.mes}</div>
+                  <div className="text-slate-600">Gastos: {brl(ef.gastos)} | Líquido: {brl(ef.liquido)} | % do Lucro: {ef.percentualGasto.toFixed(1)}%</div>
+                  {ef.alerta && <div className="text-rose-600 font-bold">⚠️ Gastos acima de 80% do lucro</div>}
+                </div>
+              ))}
+            </div>
+
+            {projecao && (
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded">
+                <div className="text-sm font-bold text-blue-900">Projeção do Próximo Mês</div>
+                <div className="text-xs text-blue-700 mt-1">Estimado: {brl(projecao.proximoMes)} {projecao.slope > 0 ? "(tendência crescente)" : "(tendência decrescente)"}</div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="space-y-4 page-break-before">
+          <h2 className="text-2xl font-bold text-slate-900">Ranking de Categorias</h2>
+          <table className="w-full text-xs border-collapse">
+            <thead>
+              <tr className="bg-slate-100">
+                <th className="border p-1 text-left">Categoria</th>
+                <th className="border p-1 text-right">Total</th>
+                <th className="border p-1 text-right">% do Total</th>
+                <th className="border p-1 text-right">Lançamentos</th>
+                <th className="border p-1 text-center">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {categoriasRanking.map((cat) => {
+                let status = "Sob Controle";
+                let corStatus = "green";
+                if (cat.pct > 50) {
+                  status = "Crítica";
+                  corStatus = "red";
+                } else if (cat.pct > 30) {
+                  status = "Atenção";
+                  corStatus = "yellow";
+                }
+                return (
+                  <tr key={cat.categoria} className="hover:bg-slate-50">
+                    <td className="border p-1 font-medium">{cat.categoria}</td>
+                    <td className="border p-1 text-right tabular-nums">{brl(cat.total)}</td>
+                    <td className="border p-1 text-right tabular-nums">{cat.pct.toFixed(1)}%</td>
+                    <td className="border p-1 text-right">{cat.count}</td>
+                    <td className="border p-1 text-center text-[10px] font-bold">{status}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="space-y-4 page-break-before">
+          <h2 className="text-2xl font-bold text-slate-900">Conclusão e Recomendações</h2>
+          <div className="text-xs space-y-2">
+            <div className="p-3 bg-slate-50 rounded">
+              <p className="font-bold mb-1">Situação Geral</p>
+              <p>
+                {totalGasto > 0
+                  ? `Gastos totais de ${brl(totalGasto)} distribuídos em ${meses.length} meses (média ${brl(mediaGasto)}/mês). Categoria dominante: ${categoriasRanking[0]?.categoria} com ${categoriasRanking[0]?.pct.toFixed(1)}% do total.`
+                  : "Nenhum gasto registrado."}
+              </p>
+            </div>
+
+            <div className="p-3 bg-slate-50 rounded">
+              <p className="font-bold mb-1">Principais Achados</p>
+              <ul className="space-y-1">
+                {alertas.length > 0
+                  ? alertas.slice(0, 3).map((a, i) => <li key={i}>• {a.titulo}</li>)
+                  : <li>• Histórico de gastos estável sem anomalias detectadas</li>}
+              </ul>
+            </div>
+
+            <div className="p-3 bg-slate-50 rounded">
+              <p className="font-bold mb-1">Ações Recomendadas</p>
+              <ul className="space-y-1">
+                {categoriasRanking[0]?.pct > 50 && <li>• Revisar despesas de {categoriasRanking[0]?.categoria} que consome {categoriasRanking[0]?.pct.toFixed(1)}% do orçamento</li>}
+                {alertas.filter((a) => a.tipo === "tendenciaCrescente").length > 0 && <li>• Gastos em crescimento sustentado - investigar causas e implementar controles</li>}
+                {eficiencias.filter((e) => e.alerta).length > 0 && <li>• {eficiencias.filter((e) => e.alerta).length} mês(es) com gastos acima de 80% do lucro - priorizar redução</li>}
+                {projecao && projecao.slope > 0 && <li>• Tendência de crescimento continua - projeção de {brl(projecao.proximoMes)} para próximo mês</li>}
+                <li>• Estabelecer políticas de descrição obrigatória para todos os gastos</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-8 pt-6 border-t-2 border-slate-200 text-xs text-slate-500 text-center">
+          <p>Relatório gerado em {fmtData(iso(new Date()))} às {new Date().toLocaleTimeString("pt-BR")}</p>
+          <p>ESPORTEVIPAPP - Sistema de Análise de Gastos</p>
         </div>
       </div>
     </div>
