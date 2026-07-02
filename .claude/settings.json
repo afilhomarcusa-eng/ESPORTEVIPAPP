@@ -16,7 +16,8 @@
       "Bash(pkill -f \"npm run dev\")",
       "Bash(sleep 5 && tail -10 /tmp/vite.log 2>/dev/null || echo \"Aguardando...\")",
       "Bash(sleep 5 && tail -5 /tmp/vite.log 2>/dev/null || echo \"Iniciando...\")",
-      "Bash(sleep 5 && tail -5 /tmp/vite.log)"
+      "Bash(sleep 5 && tail -5 /tmp/vite.log)",
+      "Bash(sleep 5 && tail -6 /tmp/vite.log)"
     ]
   }
 }

@@ -837,11 +837,11 @@ export default function App() {
 function ModalInactivos({ inativos, onClose }) {
   if (inativos.length === 0) return null;
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-md shadow-xl" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-md shadow-modal animate-scale-in" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <div className="font-semibold text-slate-900">Cambistas sem Movimento</div>
-          <button onClick={onClose} className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500"><X size={18} /></button>
+          <button onClick={onClose} aria-label="Fechar" className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 transition-colors duration-150"><X size={18} /></button>
         </div>
         <div className="p-6 space-y-3 max-h-96 overflow-y-auto">
           <p className="text-sm text-slate-600 mb-4">Os seguintes cambistas não possuem movimento há 7 dias ou mais:</p>
@@ -856,7 +856,7 @@ function ModalInactivos({ inativos, onClose }) {
           ))}
         </div>
         <div className="flex justify-end gap-2 px-6 py-4 border-t border-slate-100">
-          <button onClick={onClose} className="text-sm px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-700 text-white font-medium">Fechar</button>
+          <button onClick={onClose} className="text-sm px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-700 text-white font-medium transition-colors duration-150">Fechar</button>
         </div>
       </div>
     </div>
@@ -872,16 +872,16 @@ function PeriodPicker({ gran, setGran, ref_, setRef, opts }) {
       <div className="flex rounded-lg border border-slate-200 overflow-hidden overflow-x-auto max-w-full">
         {lista.map(([id, lab]) => (
           <button key={id} onClick={() => setGran(id)}
-            className={`px-2.5 sm:px-3 py-1.5 text-xs font-medium whitespace-nowrap transition ${gran === id ? "bg-slate-900 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+            className={`px-2.5 sm:px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-colors duration-150 ${gran === id ? "bg-slate-900 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
             {lab}
           </button>
         ))}
       </div>
       {gran !== "tudo" && (
         <div className="flex items-center gap-1">
-          <button onClick={() => setRef(shiftRef(gran, ref_, -1))} className="p-1.5 rounded-md border border-slate-200 hover:bg-slate-50 transition"><ChevronLeft size={16} /></button>
+          <button onClick={() => setRef(shiftRef(gran, ref_, -1))} className="p-1.5 rounded-md border border-slate-200 hover:bg-slate-50 transition-colors duration-150"><ChevronLeft size={16} /></button>
           <div className="text-xs font-medium text-slate-700 min-w-[7rem] text-center tabular-nums">{rotuloPeriodo(gran, ref_)}</div>
-          <button onClick={() => setRef(shiftRef(gran, ref_, 1))} className="p-1.5 rounded-md border border-slate-200 hover:bg-slate-50 transition"><ChevronRight size={16} /></button>
+          <button onClick={() => setRef(shiftRef(gran, ref_, 1))} className="p-1.5 rounded-md border border-slate-200 hover:bg-slate-50 transition-colors duration-150"><ChevronRight size={16} /></button>
         </div>
       )}
     </div>
@@ -901,15 +901,15 @@ const KPI_CORES = {
 function Kpi({ titulo, valor, delta, icon: Ic, cor = "orange", inverso = false, corValor = "text-slate-900" }) {
   const bom = inverso ? (delta ?? 0) <= 0 : (delta ?? 0) >= 0;
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 min-w-0 transition hover:shadow-md hover:border-slate-300">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-slate-500">{titulo}</span>
-        <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${KPI_CORES[cor] || KPI_CORES.orange}`}><Ic size={16} /></span>
+    <div className="bg-white rounded-xl border border-slate-200 shadow-card p-5 min-w-0 transition-shadow duration-200 hover:shadow-card-hover">
+      <div className="flex items-center justify-between mb-3">
+        <span className={eyebrow}>{titulo}</span>
+        <span className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${KPI_CORES[cor] || KPI_CORES.orange}`}><Ic size={18} /></span>
       </div>
-      <div className={`mt-2 text-2xl font-semibold tabular-nums tracking-tight truncate ${corValor}`}>{valor}</div>
+      <div className={`text-2xl md:text-[28px] font-bold tabular-nums tracking-tight truncate ${corValor}`}>{valor}</div>
       {delta != null && isFinite(delta) && (
-        <div className={`mt-1 inline-flex items-center gap-1 text-xs font-medium ${bom ? "text-emerald-600" : "text-rose-600"}`}>
-          {bom ? <TrendingUp size={13} /> : <TrendingDown size={13} />} {pct(Math.abs(delta))} vs. período anterior
+        <div className={`mt-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${bom ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
+          {bom ? <TrendingUp size={12} /> : <TrendingDown size={12} />} {pct(Math.abs(delta))}
         </div>
       )}
     </div>
@@ -1056,8 +1056,8 @@ function Dashboard({ db, update, cambById, lancs, totais, totaisPrev, gran, ref_
   const progresso = metaPeriodo ? totais.receber / metaPeriodo : null;
 
   return (
-    <div className="space-y-5">
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 md:gap-5">
         <Kpi titulo="Resultado Bruto" valor={money(totais.bruto)} delta={delta(totais.bruto, totaisPrev.bruto)} icon={Coins} cor="slate" corValor={totais.bruto >= 0 ? "text-emerald-600" : "text-rose-600"} />
         <Kpi titulo="Comissões" valor={money(totais.comissao)} delta={delta(totais.comissao, totaisPrev.comissao)} icon={Percent} cor="amber" inverso corValor={totais.comissao >= 0 ? "text-emerald-600" : "text-rose-600"} />
         <Kpi titulo="Gastos" valor={money(gastosPeriodo)} delta={delta(gastosPeriodo, gastosPrev)} icon={DollarSign} cor="amber" inverso corValor={gastosPeriodo >= 0 ? "text-emerald-600" : "text-rose-600"} />
@@ -1068,44 +1068,44 @@ function Dashboard({ db, update, cambById, lancs, totais, totaisPrev, gran, ref_
 
       {metaPeriodo != null && (
         <div className={cardBox}>
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-sm font-semibold text-slate-700">Meta do Período</div>
-            <button onClick={() => setEditMeta(true)} className="text-xs text-slate-400 hover:text-orange-600 font-medium">editar meta</button>
+          <div className="flex items-center justify-between mb-3">
+            <div className={titSec + " mb-0"}>Meta do Período</div>
+            <button onClick={() => setEditMeta(true)} className="text-xs text-slate-500 hover:text-orange-600 font-medium transition-colors">editar meta</button>
           </div>
-          <div className="flex items-end justify-between mb-1.5">
-            <span className="text-2xl font-bold text-slate-900 tabular-nums">{brl(totais.receber)}</span>
-            <span className="text-sm text-slate-400">meta {brl(metaPeriodo)}</span>
+          <div className="flex items-end justify-between mb-2">
+            <span className="text-2xl md:text-[28px] font-bold text-slate-900 tabular-nums tracking-tight">{brl(totais.receber)}</span>
+            <span className="text-sm text-slate-500">meta {brl(metaPeriodo)}</span>
           </div>
           <div className="h-2.5 rounded-full bg-slate-100 overflow-hidden">
-            <div className={`h-full rounded-full ${progresso >= 1 ? "bg-emerald-500" : progresso >= 0.6 ? "bg-amber-400" : "bg-rose-400"}`}
+            <div className={`h-full rounded-full transition-all duration-500 ${progresso >= 1 ? "bg-emerald-500" : progresso >= 0.6 ? "bg-amber-400" : "bg-rose-400"}`}
               style={{ width: `${Math.min(100, Math.max(0, (progresso || 0) * 100))}%` }} />
           </div>
-          <div className="text-xs text-slate-400 mt-1">{pct(Math.max(0, progresso || 0))} da meta atingida</div>
+          <div className="text-xs text-slate-500 mt-1.5">{pct(Math.max(0, progresso || 0))} da meta atingida</div>
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-5">
         <div className={`${cardBox} lg:col-span-2`}>
           <div className="flex items-center justify-between mb-3">
             <div className={titSec + " mb-0"}>Evolução no Período</div>
-            <div className="text-xs text-slate-400">líquido e comissão</div>
+            <div className="text-xs text-slate-500">líquido e comissão</div>
           </div>
           <div className="h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={serie} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="gradOrange" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#16a34a" stopOpacity={0.35} />
-                    <stop offset="100%" stopColor="#16a34a" stopOpacity={0} />
+                    <stop offset="0%" stopColor={THEME_CHART.positivo} stopOpacity={0.35} />
+                    <stop offset="100%" stopColor={THEME_CHART.positivo} stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" vertical={false} />
-                <XAxis dataKey="rot" tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} tickFormatter={fmtEixo} width={40} />
-                <Tooltip formatter={(v, n) => [brl(v), n === "receber" ? "Líquido" : "Comissão"]} labelStyle={{ fontWeight: 600 }} contentStyle={{ borderRadius: 10, border: "1px solid #e2e8f0", fontSize: 12 }} />
+                <CartesianGrid strokeDasharray="3 3" stroke={THEME_CHART.grid} vertical={false} />
+                <XAxis dataKey="rot" tick={CHART_AXIS_TICK} tickLine={false} axisLine={false} />
+                <YAxis tick={CHART_AXIS_TICK} tickLine={false} axisLine={false} tickFormatter={fmtEixo} width={40} />
+                <Tooltip formatter={(v, n) => [brl(v), n === "receber" ? "Líquido" : "Comissão"]} labelStyle={{ fontWeight: 600 }} contentStyle={CHART_TOOLTIP_STYLE} />
                 <ReferenceLine y={0} stroke="#cbd5e1" />
-                <Area type="monotone" dataKey="receber" stroke="#16a34a" strokeWidth={2.5} fill="url(#gradOrange)" name="receber" dot={{ r: 3, fill: "#16a34a", strokeWidth: 0 }} activeDot={{ r: 5 }} />
-                <Line type="monotone" dataKey="comissao" stroke="#94a3b8" strokeWidth={1.6} strokeDasharray="4 3" dot={false} name="comissao" />
+                <Area type="monotone" dataKey="receber" stroke={THEME_CHART.positivo} strokeWidth={2.5} fill="url(#gradOrange)" name="receber" dot={{ r: 3, fill: THEME_CHART.positivo, strokeWidth: 0 }} activeDot={{ r: 5 }} />
+                <Line type="monotone" dataKey="comissao" stroke={THEME_CHART.neutro} strokeWidth={1.6} strokeDasharray="4 3" dot={false} name="comissao" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -1116,13 +1116,13 @@ function Dashboard({ db, update, cambById, lancs, totais, totaisPrev, gran, ref_
           <div className="h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={crescimento} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" vertical={false} />
-                <XAxis dataKey="rot" tick={{ fontSize: 10, fill: "#94a3b8" }} tickLine={false} axisLine={false} interval={0} />
-                <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} tickFormatter={fmtEixo} width={40} />
-                <Tooltip formatter={(v) => [brl(v), "Líquido"]} contentStyle={{ borderRadius: 10, border: "1px solid #e2e8f0", fontSize: 12 }} />
+                <CartesianGrid strokeDasharray="3 3" stroke={THEME_CHART.grid} vertical={false} />
+                <XAxis dataKey="rot" tick={{ ...CHART_AXIS_TICK, fontSize: 10 }} tickLine={false} axisLine={false} interval={0} />
+                <YAxis tick={CHART_AXIS_TICK} tickLine={false} axisLine={false} tickFormatter={fmtEixo} width={40} />
+                <Tooltip formatter={(v) => [brl(v), "Líquido"]} contentStyle={CHART_TOOLTIP_STYLE} />
                 <ReferenceLine y={0} stroke="#cbd5e1" />
                 <Bar dataKey="receber" radius={[4, 4, 0, 0]} maxBarSize={40}>
-                  {crescimento.map((d, i) => <Cell key={i} fill={d.receber >= 0 ? "#16a34a" : "#e11d48"} />)}
+                  {crescimento.map((d, i) => <Cell key={i} fill={d.receber >= 0 ? THEME_CHART.positivo : THEME_CHART.negativo} />)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -1130,19 +1130,19 @@ function Dashboard({ db, update, cambById, lancs, totais, totaisPrev, gran, ref_
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-5">
         <div className={`${cardBox} lg:col-span-2`}>
           <div className={titSec}>Líquido por Cambista</div>
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={porCambista} layout="vertical" margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} tickFormatter={fmtEixo} />
+                <CartesianGrid strokeDasharray="3 3" stroke={THEME_CHART.grid} horizontal={false} />
+                <XAxis type="number" tick={CHART_AXIS_TICK} tickLine={false} axisLine={false} tickFormatter={fmtEixo} />
                 <YAxis type="category" dataKey="nome" width={90} tick={{ fontSize: 11, fill: "#475569" }} tickLine={false} axisLine={false} />
-                <Tooltip formatter={(v) => [brl(v), "Líquido"]} contentStyle={{ borderRadius: 10, border: "1px solid #e2e8f0", fontSize: 12 }} />
+                <Tooltip formatter={(v) => [brl(v), "Líquido"]} contentStyle={CHART_TOOLTIP_STYLE} />
                 <ReferenceLine x={0} stroke="#cbd5e1" />
                 <Bar dataKey="receber" radius={[0, 4, 4, 0]} maxBarSize={32}>
-                  {porCambista.map((d, i) => <Cell key={i} fill={d.receber >= 0 ? "#16a34a" : "#e11d48"} />)}
+                  {porCambista.map((d, i) => <Cell key={i} fill={d.receber >= 0 ? THEME_CHART.positivo : THEME_CHART.negativo} />)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -1154,13 +1154,13 @@ function Dashboard({ db, update, cambById, lancs, totais, totaisPrev, gran, ref_
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={porCambista} layout="vertical" margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} tickFormatter={fmtEixo} />
+                <CartesianGrid strokeDasharray="3 3" stroke={THEME_CHART.grid} horizontal={false} />
+                <XAxis type="number" tick={CHART_AXIS_TICK} tickLine={false} axisLine={false} tickFormatter={fmtEixo} />
                 <YAxis type="category" dataKey="nome" width={90} tick={{ fontSize: 11, fill: "#475569" }} tickLine={false} axisLine={false} />
-                <Tooltip formatter={(v) => [brl(v), "Comissão"]} contentStyle={{ borderRadius: 10, border: "1px solid #e2e8f0", fontSize: 12 }} />
+                <Tooltip formatter={(v) => [brl(v), "Comissão"]} contentStyle={CHART_TOOLTIP_STYLE} />
                 <ReferenceLine x={0} stroke="#cbd5e1" />
                 <Bar dataKey="comissao" radius={[0, 4, 4, 0]} maxBarSize={32}>
-                  {porCambista.map((d, i) => <Cell key={i} fill={d.comissao >= 0 ? "#f59e0b" : "#e11d48"} />)}
+                  {porCambista.map((d, i) => <Cell key={i} fill={d.comissao >= 0 ? THEME_CHART.aviso : THEME_CHART.negativo} />)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -1169,11 +1169,14 @@ function Dashboard({ db, update, cambById, lancs, totais, totaisPrev, gran, ref_
       </div>
 
       {emPrejuizo.length > 0 && (
-        <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 min-w-0">
-          <div className="flex items-center gap-2 text-rose-700 font-semibold text-sm"><AlertTriangle size={16} /> Cambistas em Prejuízo neste Período</div>
-          <div className="mt-2 flex flex-wrap gap-2">
+        <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 md:p-5 min-w-0">
+          <div className="flex items-center gap-2 text-rose-700 font-semibold text-sm">
+            <span className="w-7 h-7 rounded-lg bg-rose-100 flex items-center justify-center shrink-0"><AlertTriangle size={14} /></span>
+            Cambistas em Prejuízo neste Período
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
             {emPrejuizo.map((c) => (
-              <span key={c.id} className="text-xs bg-white border border-rose-200 text-rose-700 rounded-full px-3 py-1 tabular-nums">
+              <span key={c.id} className="text-xs bg-white border border-rose-200 text-rose-700 rounded-full px-3 py-1.5 tabular-nums font-medium">
                 {c.nome}: {brl(c.receber)}
               </span>
             ))}
@@ -3196,16 +3199,16 @@ function RelatorioAuditoria({ db }) {
 function Campo({ label, children }) { return <div><label className={lbl}>{label}</label>{children}</div>; }
 function Modal({ titulo, children, onClose, onSave }) {
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-md shadow-xl" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-md shadow-modal animate-scale-in" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
           <div className="font-semibold text-slate-900">{titulo}</div>
-          <button onClick={onClose} className="p-1 rounded-md hover:bg-slate-100 text-slate-500"><X size={18} /></button>
+          <button onClick={onClose} className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 transition-colors duration-150"><X size={18} /></button>
         </div>
         <div className="p-5 space-y-3">{children}</div>
         <div className="flex justify-end gap-2 px-5 py-4 border-t border-slate-100">
-          <button onClick={onClose} className="text-sm px-4 py-2 rounded-lg border border-slate-200 hover:bg-slate-50">Cancelar</button>
-          <button onClick={onSave} className="text-sm px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-700 text-white font-medium">Salvar</button>
+          <button onClick={onClose} className="text-sm px-4 py-2 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors duration-150">Cancelar</button>
+          <button onClick={onSave} className="text-sm px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-700 text-white font-medium transition-colors duration-150">Salvar</button>
         </div>
       </div>
     </div>
