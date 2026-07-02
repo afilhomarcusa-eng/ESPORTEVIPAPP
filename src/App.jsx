@@ -638,7 +638,7 @@ function importarExcel(file, update, aoTerminar) {
       const wb = XLSX.read(evt.target.result, { type: "array", cellDates: true });
       const wsC = wb.Sheets["Cambistas"];
       const wsL = wb.Sheets["Lancamentos"] || wb.Sheets["Lançamentos"];
-      if (!wsC || !wsL) { alert('A planilha precisa ter as abas "Cambistas" e "Lancamentos", no mesmo modelo exportado pelo sistema.'); return; }
+      if (!wsC || !wsL) { toast('A planilha precisa ter as abas "Cambistas" e "Lancamentos", no mesmo modelo exportado pelo sistema.', "error"); return; }
       const cRows = XLSX.utils.sheet_to_json(wsC, { defval: "" });
       const lRows = XLSX.utils.sheet_to_json(wsL, { defval: "" });
       update((d) => {
@@ -1186,7 +1186,7 @@ function Dashboard({ db, update, cambById, lancs, totais, totaisPrev, gran, ref_
 
       {editMeta && (
         <ModalMeta valor={db.metaMensal} onClose={() => setEditMeta(false)}
-          onSave={(v) => { update((d) => { d.metaMensal = v; }); setEditMeta(false); }} />
+          onSave={(v) => { update((d) => { d.metaMensal = v; }); toast("Meta atualizada.", "success"); setEditMeta(false); }} />
       )}
     </div>
   );
@@ -1194,11 +1194,11 @@ function Dashboard({ db, update, cambById, lancs, totais, totaisPrev, gran, ref_
 
 function ModalMeta({ valor, onClose, onSave }) {
   const [v, setV] = useState(String(valor || 0));
-  const salvar = () => { const n = parseFloat(String(v).replace(",", ".")); if (isNaN(n) || n < 0) return alert("Informe um valor válido."); onSave(n); };
+  const salvar = () => { const n = parseFloat(String(v).replace(",", ".")); if (isNaN(n) || n < 0) return toast("Informe um valor válido.", "error"); onSave(n); };
   return (
     <Modal titulo="Meta Mensal da Casa" onClose={onClose} onSave={salvar}>
       <Campo label="Meta de Líquido por Mês (R$)"><input value={v} onChange={(e) => setV(e.target.value)} className={inp} inputMode="decimal" autoFocus /></Campo>
-      <div className="text-xs text-slate-400">As metas de semana, quinzena e ano são calculadas automaticamente a partir desse valor.</div>
+      <div className="text-xs text-slate-500">As metas de semana, quinzena e ano são calculadas automaticamente a partir desse valor.</div>
     </Modal>
   );
 }
@@ -1884,7 +1884,7 @@ function RelatoriosTabs({ abas, ativa, onChange }) {
             <button
               key={aba.id}
               onClick={() => onChange(aba.id)}
-              className={`inline-flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition ${
+              className={`inline-flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors duration-150 ${
                 isActive
                   ? "border-orange-500 text-orange-600"
                   : "border-transparent text-slate-600 hover:text-slate-800 hover:border-slate-300"
@@ -1898,10 +1898,10 @@ function RelatoriosTabs({ abas, ativa, onChange }) {
       </div>
 
       {/* Mobile: Dropdown */}
-      <div className="sm:hidden">
+      <div className="sm:hidden relative">
         <button
           onClick={() => setShowMobileMenu(!showMobileMenu)}
-          className="w-full flex items-center justify-between px-4 py-3 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition"
+          className="w-full flex items-center justify-between px-4 py-3 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors duration-150"
         >
           <span className="flex items-center gap-2">
             {(() => {
@@ -1910,12 +1910,12 @@ function RelatoriosTabs({ abas, ativa, onChange }) {
             })()}
             {abas.find((a) => a.id === ativa)?.label}
           </span>
-          <svg className={`w-4 h-4 transition ${showMobileMenu ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className={`w-4 h-4 transition-transform duration-150 ${showMobileMenu ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
           </svg>
         </button>
         {showMobileMenu && (
-          <div className="mt-1 bg-white border border-slate-200 rounded-lg overflow-hidden">
+          <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-modal overflow-hidden animate-scale-in origin-top">
             {abas.map((aba) => {
               const Icon = aba.icon;
               const isActive = ativa === aba.id;
@@ -1926,7 +1926,7 @@ function RelatoriosTabs({ abas, ativa, onChange }) {
                     onChange(aba.id);
                     setShowMobileMenu(false);
                   }}
-                  className={`w-full text-left flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b last:border-0 transition ${
+                  className={`w-full text-left flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b last:border-0 transition-colors duration-150 ${
                     isActive ? "bg-orange-50 text-orange-600" : "text-slate-700 hover:bg-slate-50"
                   }`}
                 >
@@ -2007,21 +2007,22 @@ function FechamentoSemanal({ db, cambById, lancs, gran, ref_, preSelecionar, onC
   const inicial = (nome || "").trim()[0]?.toUpperCase() || "?";
 
   const baixarImagem = async () => {
-    if (!window.html2canvas || !ticketRef.current) { alert("O gerador de imagem ainda está carregando. Tente novamente em alguns segundos."); return; }
+    if (!window.html2canvas || !ticketRef.current) { toast("O gerador de imagem ainda está carregando. Tente novamente em alguns segundos.", "error"); return; }
     try {
       const canvas = await window.html2canvas(ticketRef.current, { backgroundColor: null, scale: 3, useCORS: true });
       const link = document.createElement("a");
       link.download = `relatorio-${(nome || "cambista").toLowerCase().replace(/\s+/g, "-")}.png`;
       link.href = canvas.toDataURL("image/png");
       link.click();
+      toast("Imagem baixada com sucesso.", "success");
     } catch (err) {
-      alert("Não consegui gerar a imagem agora. Use Salvar como PDF como alternativa.");
+      toast("Não consegui gerar a imagem agora. Use Salvar como PDF como alternativa.", "error");
     }
   };
 
   const enviarWhatsApp = async () => {
-    if (!telefone) return alert("Informe o número do WhatsApp do cambista.");
-    if (!window.html2canvas || !ticketRef.current) return alert("Aguarde o gerador de imagem carregar.");
+    if (!telefone) return toast("Informe o número do WhatsApp do cambista.", "error");
+    if (!window.html2canvas || !ticketRef.current) return toast("Aguarde o gerador de imagem carregar.", "error");
 
     try {
       const canvas = await window.html2canvas(ticketRef.current, { backgroundColor: null, scale: 3, useCORS: true });
@@ -2034,18 +2035,18 @@ function FechamentoSemanal({ db, cambById, lancs, gran, ref_, preSelecionar, onC
 
       const response = await fetch("/api/whatsapp/send", { method: "POST", body: formData });
       if (response.ok) {
-        alert("Relatório enviado com sucesso via WhatsApp!");
+        toast("Relatório enviado com sucesso via WhatsApp!", "success");
       } else {
-        alert("Erro ao enviar relatório. Verifique a conexão ou o número do telefone.");
+        toast("Erro ao enviar relatório. Verifique a conexão ou o número do telefone.", "error");
       }
     } catch (err) {
-      alert("Erro ao enviar relatório: " + err.message);
+      toast("Erro ao enviar relatório: " + err.message, "error");
     }
   };
 
   const salvarPdf = () => window.print();
 
-  const inpDark = "w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500 placeholder:text-slate-600";
+  const inpDark = "w-full h-10 bg-slate-900 border border-slate-700 rounded-lg px-3 text-sm text-white outline-none transition focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500 placeholder:text-slate-600";
 
   return (
     <div className="space-y-4">
@@ -2054,17 +2055,17 @@ function FechamentoSemanal({ db, cambById, lancs, gran, ref_, preSelecionar, onC
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[380px,1fr] gap-5">
-        <div className="bg-slate-950 rounded-2xl p-5 text-white space-y-4 h-fit">
+        <div className="bg-slate-950 rounded-2xl p-5 text-white space-y-4 h-fit shadow-card">
           <div>
             <div className="text-lg font-black"><span className="text-white">ESPORTEVIP</span><span className="text-orange-500">APP</span></div>
             <div className="text-xs text-slate-400">Gerador de Relatório</div>
           </div>
 
           <div className="grid grid-cols-2 gap-2">
-            <button onClick={() => setModo("paga")} className={`rounded-lg border px-3 py-2 text-sm font-semibold flex items-center gap-2 justify-center ${modo === "paga" ? "border-red-500 bg-red-500/10 text-white" : "border-slate-700 text-slate-400"}`}>
+            <button onClick={() => setModo("paga")} className={`rounded-lg border px-3 py-2 text-sm font-semibold flex items-center gap-2 justify-center transition-colors duration-150 ${modo === "paga" ? "border-red-500 bg-red-500/10 text-white" : "border-slate-700 text-slate-400 hover:border-slate-600"}`}>
               <span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Você Paga
             </button>
-            <button onClick={() => setModo("recebe")} className={`rounded-lg border px-3 py-2 text-sm font-semibold flex items-center gap-2 justify-center ${modo === "recebe" ? "border-emerald-500 bg-emerald-500/10 text-white" : "border-slate-700 text-slate-400"}`}>
+            <button onClick={() => setModo("recebe")} className={`rounded-lg border px-3 py-2 text-sm font-semibold flex items-center gap-2 justify-center transition-colors duration-150 ${modo === "recebe" ? "border-emerald-500 bg-emerald-500/10 text-white" : "border-slate-700 text-slate-400 hover:border-slate-600"}`}>
               <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" /> Você Recebe
             </button>
           </div>
@@ -2124,13 +2125,13 @@ function FechamentoSemanal({ db, cambById, lancs, gran, ref_, preSelecionar, onC
           </div>
 
           <div className="space-y-2 pt-2">
-            <button onClick={baixarImagem} disabled={!html2canvasPronto} className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-slate-950 font-bold rounded-lg py-2.5 text-sm">
-              {html2canvasPronto ? "Baixar Imagem (PNG)" : "Carregando..."}
+            <button onClick={baixarImagem} disabled={!html2canvasPronto} className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-slate-950 font-bold rounded-lg py-2.5 text-sm transition-colors duration-150 flex items-center justify-center gap-2">
+              {!html2canvasPronto && <Loader2 size={15} className="animate-spin" />} {html2canvasPronto ? "Baixar Imagem (PNG)" : "Carregando..."}
             </button>
-            <button onClick={enviarWhatsApp} disabled={!html2canvasPronto} className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-bold rounded-lg py-2.5 text-sm flex items-center justify-center gap-2">
-              <Send size={15} /> {html2canvasPronto ? "Enviar WhatsApp" : "Carregando..."}
+            <button onClick={enviarWhatsApp} disabled={!html2canvasPronto} className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-bold rounded-lg py-2.5 text-sm flex items-center justify-center gap-2 transition-colors duration-150">
+              {html2canvasPronto ? <Send size={15} /> : <Loader2 size={15} className="animate-spin" />} {html2canvasPronto ? "Enviar WhatsApp" : "Carregando..."}
             </button>
-            <button onClick={salvarPdf} className="w-full border border-slate-700 hover:bg-slate-900 text-white rounded-lg py-2.5 text-sm flex items-center justify-center gap-2">
+            <button onClick={salvarPdf} className="w-full border border-slate-700 hover:bg-slate-900 text-white rounded-lg py-2.5 text-sm flex items-center justify-center gap-2 transition-colors duration-150">
               <Printer size={15} /> Salvar como PDF
             </button>
           </div>
@@ -2221,11 +2222,7 @@ function AuditoriaCambistas({ db }) {
   const [ultimaGeracao, setUltimaGeracao] = useState(localStorage.getItem("ultimaGeracaoAuditoriaCambistas"));
 
   if (!db.cambistas || db.cambistas.length === 0) {
-    return (
-      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-center text-amber-700 text-sm">
-        Nenhum cambista cadastrado. Crie cambistas para gerar o relatório de auditoria.
-      </div>
-    );
+    return <EmptyState icon={BarChart3} titulo="Nenhum cambista cadastrado" descricao="Crie cambistas para gerar o relatório de auditoria." />;
   }
 
   const cambistasAtivos = db.cambistas.filter((c) => c.ativo);
@@ -2249,10 +2246,11 @@ function AuditoriaCambistas({ db }) {
     try {
       await new Promise((resolve) => setTimeout(resolve, 500));
       window.print();
-      setUltimaGeracao(new Date().toLocaleString("pt-BR"));
-      localStorage.setItem("ultimaGeracaoAuditoriaCambistas", new Date().toLocaleString("pt-BR"));
+      const agora = new Date().toLocaleString("pt-BR");
+      setUltimaGeracao(agora);
+      localStorage.setItem("ultimaGeracaoAuditoriaCambistas", agora);
     } catch (err) {
-      alert("Erro ao gerar PDF: " + err.message);
+      toast("Erro ao gerar PDF: " + err.message, "error");
     } finally {
       setGerando(false);
     }
@@ -2260,40 +2258,40 @@ function AuditoriaCambistas({ db }) {
 
   return (
     <div className="space-y-4">
-      <div className="space-y-2">
-        <h2 className="text-lg font-semibold text-slate-900">Auditoria de Cambistas</h2>
-        <p className="text-sm text-slate-600">Análise histórica com detecção de fraude, comprometimento e ranking de risco</p>
+      <div className="space-y-1">
+        <h2 className="text-lg font-bold tracking-tight text-slate-900">Auditoria de Cambistas</h2>
+        <p className="text-sm text-slate-500">Análise histórica com detecção de fraude, comprometimento e ranking de risco</p>
       </div>
 
-      <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-3">
+      <div className={cardBox}>
         <div>
-          <label className="text-sm font-medium text-slate-700 mb-2 block">Período (deixe em branco para histórico completo)</label>
+          <label className={lbl}>Período (deixe em branco para histórico completo)</label>
           <div className="flex gap-2">
-            <input type="date" value={dtDe} onChange={(ev) => setDtDe(ev.target.value)} className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-orange-500/40" placeholder="De" />
-            <input type="date" value={dtAte} onChange={(ev) => setDtAte(ev.target.value)} className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-orange-500/40" placeholder="Até" />
-            {(dtDe || dtAte) && <button onClick={() => { setDtDe(""); setDtAte(""); }} className="px-3 py-2 text-sm text-slate-400 hover:text-rose-500 font-medium">Limpar</button>}
+            <input type="date" value={dtDe} onChange={(ev) => setDtDe(ev.target.value)} className={inp} placeholder="De" />
+            <input type="date" value={dtAte} onChange={(ev) => setDtAte(ev.target.value)} className={inp} placeholder="Até" />
+            {(dtDe || dtAte) && <button onClick={() => { setDtDe(""); setDtAte(""); }} className="px-3 text-sm text-slate-400 hover:text-rose-500 font-medium shrink-0 transition-colors">Limpar</button>}
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
-          <div className="bg-slate-50 rounded p-3">
-            <div className="text-xs text-slate-500 font-medium">Cambistas</div>
-            <div className="text-2xl font-bold text-slate-900">{cambistasAtivos.length}</div>
+        <div className="grid grid-cols-3 gap-3 mt-4">
+          <div className="bg-slate-50 rounded-lg p-3">
+            <div className={eyebrow}>Cambistas</div>
+            <div className="text-2xl font-bold text-slate-900 tabular-nums mt-1">{cambistasAtivos.length}</div>
           </div>
-          <div className="bg-slate-50 rounded p-3">
-            <div className="text-xs text-slate-500 font-medium">Semanas</div>
-            <div className="text-2xl font-bold text-slate-900">{totalSemanas}</div>
+          <div className="bg-slate-50 rounded-lg p-3">
+            <div className={eyebrow}>Semanas</div>
+            <div className="text-2xl font-bold text-slate-900 tabular-nums mt-1">{totalSemanas}</div>
           </div>
-          <div className="bg-rose-50 rounded p-3">
-            <div className="text-xs text-rose-600 font-medium">Alertas</div>
-            <div className="text-2xl font-bold text-rose-700">{alertasPreview}</div>
+          <div className="bg-rose-50 rounded-lg p-3">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-rose-600">Alertas</div>
+            <div className="text-2xl font-bold text-rose-700 tabular-nums mt-1">{alertasPreview}</div>
           </div>
         </div>
 
-        {ultimaGeracao && <div className="text-xs text-slate-500">⏱️ Última geração: {ultimaGeracao}</div>}
+        {ultimaGeracao && <div className="text-xs text-slate-500 mt-3 flex items-center gap-1.5"><Clock size={12} /> Última geração: {ultimaGeracao}</div>}
 
-        <button onClick={gerarPdf} disabled={gerando} className="w-full bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-bold rounded-lg py-2.5 text-sm flex items-center justify-center gap-2 transition">
-          <Printer size={16} /> {gerando ? "Gerando..." : "Gerar PDF"}
+        <button onClick={gerarPdf} disabled={gerando} className="w-full mt-4 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-bold rounded-lg py-2.5 text-sm flex items-center justify-center gap-2 transition-colors duration-150">
+          {gerando ? <Loader2 size={16} className="animate-spin" /> : <Printer size={16} />} {gerando ? "Gerando..." : "Gerar PDF"}
         </button>
       </div>
 
@@ -2310,11 +2308,7 @@ function AuditoriaGastos({ db }) {
   const [ultimaGeracao, setUltimaGeracao] = useState(localStorage.getItem("ultimaGeracaoAuditoriaGastos"));
 
   if (!db.gastos || db.gastos.length === 0) {
-    return (
-      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-center text-amber-700 text-sm">
-        Nenhum gasto registrado. Registre gastos para gerar o relatório de auditoria.
-      </div>
-    );
+    return <EmptyState icon={TrendingUp} titulo="Nenhum gasto registrado" descricao="Registre gastos para gerar o relatório de auditoria." />;
   }
 
   const { meses, alertas } = analisarGastos(db.gastos);
@@ -2326,10 +2320,11 @@ function AuditoriaGastos({ db }) {
     try {
       await new Promise((resolve) => setTimeout(resolve, 500));
       window.print();
-      setUltimaGeracao(new Date().toLocaleString("pt-BR"));
-      localStorage.setItem("ultimaGeracaoAuditoriaGastos", new Date().toLocaleString("pt-BR"));
+      const agora = new Date().toLocaleString("pt-BR");
+      setUltimaGeracao(agora);
+      localStorage.setItem("ultimaGeracaoAuditoriaGastos", agora);
     } catch (err) {
-      alert("Erro ao gerar PDF: " + err.message);
+      toast("Erro ao gerar PDF: " + err.message, "error");
     } finally {
       setGerando(false);
     }
@@ -2337,40 +2332,40 @@ function AuditoriaGastos({ db }) {
 
   return (
     <div className="space-y-4">
-      <div className="space-y-2">
-        <h2 className="text-lg font-semibold text-slate-900">Auditoria de Gastos</h2>
-        <p className="text-sm text-slate-600">Análise completa com anomalias, saúde financeira e projeções</p>
+      <div className="space-y-1">
+        <h2 className="text-lg font-bold tracking-tight text-slate-900">Auditoria de Gastos</h2>
+        <p className="text-sm text-slate-500">Análise completa com anomalias, saúde financeira e projeções</p>
       </div>
 
-      <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-3">
+      <div className={cardBox}>
         <div>
-          <label className="text-sm font-medium text-slate-700 mb-2 block">Período (deixe em branco para histórico completo)</label>
+          <label className={lbl}>Período (deixe em branco para histórico completo)</label>
           <div className="flex gap-2">
-            <input type="date" value={dtDe} onChange={(ev) => setDtDe(ev.target.value)} className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-orange-500/40" placeholder="De" />
-            <input type="date" value={dtAte} onChange={(ev) => setDtAte(ev.target.value)} className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-orange-500/40" placeholder="Até" />
-            {(dtDe || dtAte) && <button onClick={() => { setDtDe(""); setDtAte(""); }} className="px-3 py-2 text-sm text-slate-400 hover:text-rose-500 font-medium">Limpar</button>}
+            <input type="date" value={dtDe} onChange={(ev) => setDtDe(ev.target.value)} className={inp} placeholder="De" />
+            <input type="date" value={dtAte} onChange={(ev) => setDtAte(ev.target.value)} className={inp} placeholder="Até" />
+            {(dtDe || dtAte) && <button onClick={() => { setDtDe(""); setDtAte(""); }} className="px-3 text-sm text-slate-400 hover:text-rose-500 font-medium shrink-0 transition-colors">Limpar</button>}
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
-          <div className="bg-slate-50 rounded p-3">
-            <div className="text-xs text-slate-500 font-medium">Total Gasto</div>
-            <div className="text-2xl font-bold text-slate-900 tabular-nums">{brl(totalGasto)}</div>
+        <div className="grid grid-cols-3 gap-3 mt-4">
+          <div className="bg-slate-50 rounded-lg p-3">
+            <div className={eyebrow}>Total Gasto</div>
+            <div className="text-2xl font-bold text-slate-900 tabular-nums mt-1">{brl(totalGasto)}</div>
           </div>
-          <div className="bg-slate-50 rounded p-3">
-            <div className="text-xs text-slate-500 font-medium">Meses</div>
-            <div className="text-2xl font-bold text-slate-900">{meses.length}</div>
+          <div className="bg-slate-50 rounded-lg p-3">
+            <div className={eyebrow}>Meses</div>
+            <div className="text-2xl font-bold text-slate-900 tabular-nums mt-1">{meses.length}</div>
           </div>
-          <div className="bg-rose-50 rounded p-3">
-            <div className="text-xs text-rose-600 font-medium">Alertas</div>
-            <div className="text-2xl font-bold text-rose-700">{alertasCount}</div>
+          <div className="bg-rose-50 rounded-lg p-3">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-rose-600">Alertas</div>
+            <div className="text-2xl font-bold text-rose-700 tabular-nums mt-1">{alertasCount}</div>
           </div>
         </div>
 
-        {ultimaGeracao && <div className="text-xs text-slate-500">⏱️ Última geração: {ultimaGeracao}</div>}
+        {ultimaGeracao && <div className="text-xs text-slate-500 mt-3 flex items-center gap-1.5"><Clock size={12} /> Última geração: {ultimaGeracao}</div>}
 
-        <button onClick={gerarPdf} disabled={gerando} className="w-full bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold rounded-lg py-2.5 text-sm flex items-center justify-center gap-2 transition">
-          <Printer size={16} /> {gerando ? "Gerando..." : "Gerar PDF"}
+        <button onClick={gerarPdf} disabled={gerando} className="w-full mt-4 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold rounded-lg py-2.5 text-sm flex items-center justify-center gap-2 transition-colors duration-150">
+          {gerando ? <Loader2 size={16} className="animate-spin" /> : <Printer size={16} />} {gerando ? "Gerando..." : "Gerar PDF"}
         </button>
       </div>
 
@@ -2393,7 +2388,7 @@ function RelatoriosContainer({ db, cambById, lancs, gran, ref_, range, preSeleci
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="text-sm text-slate-500">Relatórios e Análises</div>
-        <button onClick={() => exportarExcel({ db })} className="inline-flex items-center gap-2 text-xs border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 rounded-lg px-3 py-1.5">
+        <button onClick={() => exportarExcel({ db })} className="inline-flex items-center gap-2 text-xs border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 rounded-lg px-3 py-1.5 transition-colors duration-150">
           <FileSpreadsheet size={13} /> Exportar Dados (.xlsx)
         </button>
       </div>
@@ -2422,315 +2417,6 @@ function Relatorios({ db, cambById, lancs, gran, ref_, preSelecionar, onConsumir
   return <RelatoriosContainer db={db} cambById={cambById} lancs={lancs} gran={gran} ref_={ref_} range={[s, e]} preSelecionar={preSelecionar} onConsumir={onConsumir} />;
 }
 
-/* FUNÇÃO ANTIGA - PRESERVED COMO REFERÊNCIA (pode ser removida após validação)
-function RelatóriosOld({ db, cambById, lancs, gran, ref_, preSelecionar, onConsumir }) {
-  const [tipoRelatorio, setTipoRelatorio] = useState("semanal");
-  const [modo, setModo] = useState("paga");
-  const [cambistaSel, setCambistaSel] = useState("");
-  const [nome, setNome] = useState("");
-  const [periodoTxt, setPeriodoTxt] = useState("");
-  const [bruto, setBruto] = useState("");
-  const [comissaoPct, setComissaoPct] = useState("10");
-  const [auto, setAuto] = useState(true);
-  const [comissaoManual, setComissaoManual] = useState("");
-  const [totalManual, setTotalManual] = useState("");
-  const [telefone, setTelefone] = useState("");
-  const [pagamentoAte, setPagamentoAte] = useState("");
-  const [html2canvasPronto, setHtml2canvasPronto] = useState(typeof window !== "undefined" && !!window.html2canvas);
-  const ticketRef = useRef(null);
-
-  const [s, e] = periodRange(gran, ref_);
-  const periodoDefault = `${pad(s.getDate())}/${pad(s.getMonth() + 1)} a ${pad(e.getDate())}/${pad(e.getMonth() + 1)}`;
-
-  useEffect(() => {
-    if (typeof window === "undefined" || window.html2canvas) { setHtml2canvasPronto(true); return; }
-    const script = document.createElement("script");
-    script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
-    script.async = true;
-    script.onload = () => setHtml2canvasPronto(true);
-    document.body.appendChild(script);
-  }, []);
-
-  useEffect(() => {
-    const style = document.createElement("style");
-    style.innerHTML = "@media print { body * { visibility: hidden; } #ticket-print-area, #ticket-print-area * { visibility: visible; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; } #ticket-print-area { position: fixed; left: 50%; top: 24px; transform: translateX(-50%); width: 420px; max-width: 92vw; padding: 24px; background: #020617 !important; border: 4px solid #f97316; border-radius: 24px; } }";
-    document.head.appendChild(style);
-    return () => { document.head.removeChild(style); };
-  }, []);
-
-  const aoSelecionarCambista = (id) => {
-    setCambistaSel(id);
-    if (!id) return;
-    const c = cambById[id];
-    if (!c) return;
-    const ls = lancs.filter((l) => l.cambistaId === id);
-    const ag = agrega(ls, cambById);
-    setNome(c.nome);
-    setTelefone(c.contato || "");
-    setComissaoPct(String(Math.round(c.comissaoPadrao * 1000) / 10));
-    setBruto(ag.bruto.toFixed(2).replace(".", ","));
-    setModo(ag.receber >= 0 ? "paga" : "recebe");
-  };
-
-  useEffect(() => {
-    if (preSelecionar) {
-      aoSelecionarCambista(preSelecionar);
-      onConsumir && onConsumir();
-    }
-  }, [preSelecionar]);
-
-  const brutoNum = toNum(bruto);
-  const pctNum = toNum(comissaoPct);
-  const comissaoAuto = (brutoNum * pctNum) / 100;
-  const totalAuto = brutoNum - comissaoAuto;
-  const comissaoNum = auto ? comissaoAuto : toNum(comissaoManual);
-  const totalNum = auto ? totalAuto : toNum(totalManual);
-  const inicial = (nome || "").trim()[0]?.toUpperCase() || "?";
-
-  const baixarImagem = async () => {
-    if (!window.html2canvas || !ticketRef.current) { alert("O gerador de imagem ainda está carregando. Tente novamente em alguns segundos."); return; }
-    try {
-      const canvas = await window.html2canvas(ticketRef.current, { backgroundColor: null, scale: 3, useCORS: true });
-      const link = document.createElement("a");
-      link.download = `relatorio-${(nome || "cambista").toLowerCase().replace(/\s+/g, "-")}.png`;
-      link.href = canvas.toDataURL("image/png");
-      link.click();
-    } catch (err) {
-      alert("Não consegui gerar a imagem agora. Use Salvar como PDF como alternativa.");
-    }
-  };
-
-  const enviarWhatsApp = async () => {
-    if (!telefone) return alert("Informe o número do WhatsApp do cambista.");
-    if (!window.html2canvas || !ticketRef.current) return alert("Aguarde o gerador de imagem carregar.");
-
-    try {
-      const canvas = await window.html2canvas(ticketRef.current, { backgroundColor: null, scale: 3, useCORS: true });
-      const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
-
-      const formData = new FormData();
-      formData.append("file", blob, "relatorio.png");
-      formData.append("phone", telefone.replace(/\D/g, ""));
-      formData.append("name", nome);
-
-      const response = await fetch("/api/whatsapp/send", { method: "POST", body: formData });
-      if (response.ok) {
-        alert("Relatório enviado com sucesso via WhatsApp!");
-      } else {
-        alert("Erro ao enviar relatório. Verifique a conexão ou o número do telefone.");
-      }
-    } catch (err) {
-      alert("Erro ao enviar relatório: " + err.message);
-    }
-  };
-
-  const salvarPdf = () => window.print();
-
-  const inpDark = "w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500 placeholder:text-slate-600";
-
-  if (tipoRelatorio === "auditoria") {
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex gap-2">
-            <button onClick={() => setTipoRelatorio("semanal")} className="text-sm px-4 py-2 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600">← Voltar ao Semanal</button>
-          </div>
-        </div>
-        <RelatorioAuditoria db={db} />
-      </div>
-    );
-  }
-
-  if (tipoRelatorio === "auditoriaGastos") {
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex gap-2">
-            <button onClick={() => setTipoRelatorio("semanal")} className="text-sm px-4 py-2 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600">← Voltar ao Semanal</button>
-          </div>
-        </div>
-        <RelatorioAuditoriaGastos db={db} />
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="text-sm text-slate-500">Gerador de Relatório de Fechamento</div>
-        <div className="flex gap-2 flex-wrap">
-          <button onClick={() => exportarExcel({ db })} className="inline-flex items-center gap-2 text-xs border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 rounded-lg px-3 py-1.5">
-            <FileSpreadsheet size={13} /> Exportar Dados (.xlsx)
-          </button>
-          <button onClick={() => setTipoRelatorio("auditoria")} className="inline-flex items-center gap-2 text-xs border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg px-3 py-1.5">
-            <FileText size={13} /> Auditoria Cambistas
-          </button>
-          <button onClick={() => setTipoRelatorio("auditoriaGastos")} className="inline-flex items-center gap-2 text-xs border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg px-3 py-1.5">
-            <FileText size={13} /> Auditoria Gastos
-          </button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-[380px,1fr] gap-5">
-        <div className="bg-slate-950 rounded-2xl p-5 text-white space-y-4 h-fit">
-          <div>
-            <div className="text-lg font-black"><span className="text-white">ESPORTEVIP</span><span className="text-orange-500">APP</span></div>
-            <div className="text-xs text-slate-400">Gerador de Relatório</div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <button onClick={() => setModo("paga")} className={`rounded-lg border px-3 py-2 text-sm font-semibold flex items-center gap-2 justify-center ${modo === "paga" ? "border-red-500 bg-red-500/10 text-white" : "border-slate-700 text-slate-400"}`}>
-              <span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Você Paga
-            </button>
-            <button onClick={() => setModo("recebe")} className={`rounded-lg border px-3 py-2 text-sm font-semibold flex items-center gap-2 justify-center ${modo === "recebe" ? "border-emerald-500 bg-emerald-500/10 text-white" : "border-slate-700 text-slate-400"}`}>
-              <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" /> Você Recebe
-            </button>
-          </div>
-
-          <div>
-            <label className="block text-[11px] uppercase tracking-wide text-slate-400 mb-1">Cambista (opcional)</label>
-            <select value={cambistaSel} onChange={(ev) => aoSelecionarCambista(ev.target.value)} className={inpDark}>
-              <option value="">Preencher Manualmente</option>
-              {db.cambistas.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-[11px] uppercase tracking-wide text-slate-400 mb-1">Nome do Cambista</label>
-            <input value={nome} onChange={(ev) => setNome(ev.target.value)} className={inpDark} placeholder="Nome" />
-          </div>
-
-          <div>
-            <label className="block text-[11px] uppercase tracking-wide text-slate-400 mb-1">Período</label>
-            <input value={periodoTxt || periodoDefault} onChange={(ev) => setPeriodoTxt(ev.target.value)} className={inpDark} />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[11px] uppercase tracking-wide text-slate-400 mb-1">Bruto (R$)</label>
-              <input value={bruto} onChange={(ev) => setBruto(ev.target.value)} className={inpDark} inputMode="decimal" />
-            </div>
-            <div>
-              <label className="block text-[11px] uppercase tracking-wide text-slate-400 mb-1">Comissão %</label>
-              <input value={comissaoPct} onChange={(ev) => setComissaoPct(ev.target.value)} className={inpDark} inputMode="decimal" />
-            </div>
-          </div>
-
-          <label className="flex items-center gap-2 text-xs text-slate-300">
-            <input type="checkbox" checked={auto} onChange={(ev) => setAuto(ev.target.checked)} /> Calcular Automaticamente
-          </label>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[11px] uppercase tracking-wide text-slate-400 mb-1">Comissão (R$)</label>
-              <input value={auto ? numFmt(comissaoNum) : comissaoManual} onChange={(ev) => setComissaoManual(ev.target.value)} disabled={auto} className={`${inpDark} ${auto ? "opacity-60" : ""}`} />
-            </div>
-            <div>
-              <label className="block text-[11px] uppercase tracking-wide text-slate-400 mb-1">Total Geral (R$)</label>
-              <input value={auto ? numFmt(totalNum) : totalManual} onChange={(ev) => setTotalManual(ev.target.value)} disabled={auto} className={`${inpDark} ${auto ? "opacity-60" : ""}`} />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-[11px] uppercase tracking-wide text-slate-400 mb-1">Telefone (WhatsApp)</label>
-            <input value={telefone} onChange={(ev) => setTelefone(ev.target.value)} className={inpDark} placeholder="(00) 0 0000-0000" />
-          </div>
-
-          <div>
-            <label className="block text-[11px] uppercase tracking-wide text-slate-400 mb-1">Pagamento Até (dia)</label>
-            <input value={pagamentoAte} onChange={(ev) => setPagamentoAte(ev.target.value)} className={inpDark} placeholder="ex.: sexta-feira" />
-          </div>
-
-          <div className="space-y-2 pt-2">
-            <button onClick={baixarImagem} disabled={!html2canvasPronto} className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-slate-950 font-bold rounded-lg py-2.5 text-sm">
-              {html2canvasPronto ? "Baixar Imagem (PNG)" : "Carregando..."}
-            </button>
-            <button onClick={enviarWhatsApp} disabled={!html2canvasPronto} className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-bold rounded-lg py-2.5 text-sm flex items-center justify-center gap-2">
-              <Send size={15} /> {html2canvasPronto ? "Enviar WhatsApp" : "Carregando..."}
-            </button>
-            <button onClick={salvarPdf} className="w-full border border-slate-700 hover:bg-slate-900 text-white rounded-lg py-2.5 text-sm flex items-center justify-center gap-2">
-              <Printer size={15} /> Salvar como PDF
-            </button>
-          </div>
-        </div>
-
-        <div className="min-w-0">
-          <div id="ticket-print-area" ref={ticketRef} className="rounded-3xl border-4 border-orange-500 p-8" style={{ background: "#020617" }}>
-            <div className="text-center mb-6">
-              <div className="text-2xl font-black tracking-tight"><span className="text-white">ESPORTEVIP</span><span className="text-orange-500">APP</span></div>
-              {telefone && <div className="text-white text-sm font-semibold mt-1">{telefone}</div>}
-              <div className="text-slate-500 text-[11px] tracking-[0.2em] mt-0.5">ESPORTEVIP.APP</div>
-              <div className="h-px w-40 bg-slate-700 mx-auto mt-4" />
-            </div>
-
-            <div className="text-center mb-6">
-              <div className="text-[11px] tracking-[0.3em] text-orange-500 font-bold uppercase">RELATÓRIO</div>
-              <div className="text-white font-black uppercase leading-[0.95] mt-1 text-4xl">{rotuloPeriodo(gran, ref_)}</div>
-              <div className="inline-flex items-center gap-2 mt-4 bg-slate-800/70 border border-slate-700 rounded-full px-4 py-1.5 text-xs text-slate-300">
-                <span className="text-slate-500">Período</span><span className="font-semibold text-white">{periodoTxt || periodoDefault}</span>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-2xl overflow-hidden">
-              <div className="flex items-center justify-between px-5 pt-5 pb-4">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-9 h-9 rounded-full bg-orange-500 text-white font-bold flex items-center justify-center shrink-0">{inicial}</div>
-                  <div className="min-w-0">
-                    <div className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold">Cambista</div>
-                    <div className="text-slate-900 font-bold truncate leading-relaxed pb-0.5">{nome || "Sem Nome"}</div>
-                  </div>
-                </div>
-                <div className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold shrink-0">Fechamento</div>
-              </div>
-              <div className="relative border-t border-dashed border-slate-200">
-                <span className="absolute -left-3 -top-3 w-6 h-6 rounded-full" style={{ background: "#020617" }} />
-                <span className="absolute -right-3 -top-3 w-6 h-6 rounded-full" style={{ background: "#020617" }} />
-              </div>
-              <div className="px-5 py-4 flex items-center justify-between">
-                <span className="text-slate-500 font-medium">Bruto</span>
-                <span className="text-slate-900 font-bold text-2xl tabular-nums">{numFmt(brutoNum)}</span>
-              </div>
-              <div className="px-5 pb-4 pt-4 flex items-center justify-between border-t border-slate-100">
-                <span className="text-slate-500 font-medium flex items-center gap-2">Comissão <span className="text-[10px] bg-orange-50 text-orange-600 font-bold px-1.5 py-0.5 rounded">{pctNum}%</span></span>
-                <span className="text-slate-900 font-bold text-2xl tabular-nums">{numFmt(comissaoNum)}</span>
-              </div>
-              <div className={`px-5 py-4 flex items-center justify-between ${modo === "paga" ? "bg-red-600" : "bg-emerald-600"}`}>
-                <div>
-                  <div className="text-[10px] uppercase tracking-wide text-white/70 font-semibold">Total Geral</div>
-                  <div className="text-white font-bold">{modo === "paga" ? "Você Paga" : "Nós Temos que Pagar"}</div>
-                </div>
-                <div className="text-white text-right">
-                  <span className="text-base font-semibold align-top mr-0.5">R$</span><span className="text-3xl font-black">{numFmt(totalNum)}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-center gap-5 mt-4 text-xs text-slate-400 flex-wrap">
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Você Paga</span>
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" /> Nós Temos que Pagar</span>
-            </div>
-
-            <div className="mt-4 bg-slate-800/60 border border-slate-700 rounded-xl p-4 flex items-center gap-3">
-              <div className="bg-green-500 text-slate-950 font-black text-xs rounded-lg px-2.5 py-1.5 shrink-0">PIX</div>
-              <div className="min-w-0">
-                <div className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold">Forma de Pagamento</div>
-                <div className="text-white font-bold text-sm leading-relaxed pb-0.5">Aguarde enviarmos a chave Pix</div>
-              </div>
-            </div>
-
-            {pagamentoAte && (
-              <div className="mt-4 flex items-center gap-2 text-xs text-slate-400">
-                <span className="w-1.5 h-1.5 rounded-full bg-orange-500 inline-block shrink-0" />
-                Realize o pagamento até <span className="font-bold text-white">{pagamentoAte}</span>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /* ======================== RELATÓRIO DE AUDITORIA DE GASTOS ======================== */
 function RelatorioAuditoriaGastos({ db }) {
   const auditoriaGastosPDFRef = useRef(null);
@@ -2757,8 +2443,9 @@ function RelatorioAuditoriaGastos({ db }) {
       link.download = `auditoria-gastos-${iso(new Date()).replace(/-/g, "-")}.png`;
       link.href = canvas.toDataURL("image/png");
       link.click();
+      toast("Imagem gerada com sucesso.", "success");
     } catch (err) {
-      alert("Erro ao gerar PDF: " + err.message);
+      toast("Erro ao gerar PDF: " + err.message, "error");
     } finally {
       setGerando(false);
     }
@@ -2790,10 +2477,10 @@ function RelatorioAuditoriaGastos({ db }) {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="text-sm text-slate-500">Análise Completa de Gastos - Histórico Inteiro</div>
         <div className="flex gap-2 flex-wrap">
-          <button onClick={gerarPdf} disabled={gerando} className="inline-flex items-center gap-2 text-xs border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 rounded-lg px-3 py-1.5 disabled:opacity-50">
-            {gerando ? "Gerando..." : "Baixar como Imagem"}
+          <button onClick={gerarPdf} disabled={gerando} className="inline-flex items-center gap-2 text-xs border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 rounded-lg px-3 py-1.5 disabled:opacity-50 transition-colors duration-150">
+            {gerando && <Loader2 size={13} className="animate-spin" />} {gerando ? "Gerando..." : "Baixar como Imagem"}
           </button>
-          <button onClick={salvarPdf} className="inline-flex items-center gap-2 text-xs border border-orange-200 bg-orange-50 hover:bg-orange-100 text-orange-700 rounded-lg px-3 py-1.5">
+          <button onClick={salvarPdf} className="inline-flex items-center gap-2 text-xs border border-orange-200 bg-orange-50 hover:bg-orange-100 text-orange-700 rounded-lg px-3 py-1.5 transition-colors duration-150">
             <Printer size={13} /> Salvar como PDF
           </button>
         </div>
@@ -3028,8 +2715,9 @@ function RelatorioAuditoria({ db }) {
       link.download = `auditoria-completa-${iso(new Date()).replace(/-/g, "-")}.png`;
       link.href = canvas.toDataURL("image/png");
       link.click();
+      toast("Imagem gerada com sucesso.", "success");
     } catch (err) {
-      alert("Erro ao gerar PDF: " + err.message);
+      toast("Erro ao gerar PDF: " + err.message, "error");
     } finally {
       setGerando(false);
     }
@@ -3069,10 +2757,10 @@ function RelatorioAuditoria({ db }) {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="text-sm text-slate-500">Análise de Fraude e Desempenho - Histórico Completo</div>
         <div className="flex gap-2 flex-wrap">
-          <button onClick={gerarPdf} disabled={gerando} className="inline-flex items-center gap-2 text-xs border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 rounded-lg px-3 py-1.5 disabled:opacity-50">
-            {gerando ? "Gerando..." : "Baixar como Imagem"}
+          <button onClick={gerarPdf} disabled={gerando} className="inline-flex items-center gap-2 text-xs border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 rounded-lg px-3 py-1.5 disabled:opacity-50 transition-colors duration-150">
+            {gerando && <Loader2 size={13} className="animate-spin" />} {gerando ? "Gerando..." : "Baixar como Imagem"}
           </button>
-          <button onClick={salvarPdf} className="inline-flex items-center gap-2 text-xs border border-orange-200 bg-orange-50 hover:bg-orange-100 text-orange-700 rounded-lg px-3 py-1.5">
+          <button onClick={salvarPdf} className="inline-flex items-center gap-2 text-xs border border-orange-200 bg-orange-50 hover:bg-orange-100 text-orange-700 rounded-lg px-3 py-1.5 transition-colors duration-150">
             <Printer size={13} /> Salvar como PDF
           </button>
         </div>

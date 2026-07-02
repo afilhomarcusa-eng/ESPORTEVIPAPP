@@ -17,7 +17,11 @@
       "Bash(sleep 5 && tail -10 /tmp/vite.log 2>/dev/null || echo \"Aguardando...\")",
       "Bash(sleep 5 && tail -5 /tmp/vite.log 2>/dev/null || echo \"Iniciando...\")",
       "Bash(sleep 5 && tail -5 /tmp/vite.log)",
-      "Bash(sleep 5 && tail -6 /tmp/vite.log)"
+      "Bash(sleep 5 && tail -6 /tmp/vite.log)",
+      "Bash(awk 'NR>=2426 && /\\\\*\\\\// {print NR\": \"$0; exit}' src/App.jsx)",
+      "Bash(awk 'NR>2426 && index\\($0,\"*/\"\\) {print NR\": \"$0; exit}' src/App.jsx)",
+      "Bash(sleep 5 && tail -8 /tmp/vite.log)",
+      "Bash(curl -s http://localhost:5179/)"
     ]
   }
 }
