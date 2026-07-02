@@ -2422,6 +2422,13 @@ function RelatorioAuditoriaGastos({ db }) {
   const auditoriaGastosPDFRef = useRef(null);
   const [gerando, setGerando] = useState(false);
 
+  useEffect(() => {
+    const style = document.createElement("style");
+    style.innerHTML = "@media print { body * { visibility: hidden; } #auditoria-gastos-pdf-area, #auditoria-gastos-pdf-area * { visibility: visible; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; } #auditoria-gastos-pdf-area { position: absolute; left: 0; top: 0; width: 100%; min-height: 0 !important; margin: 0; box-shadow: none !important; } .page-break-before { break-before: page; page-break-before: always; } @page { margin: 14mm; } }";
+    document.head.appendChild(style);
+    return () => { document.head.removeChild(style); };
+  }, []);
+
   if (!db.gastos || db.gastos.length === 0) {
     return (
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-center text-amber-700 text-sm">
@@ -2697,6 +2704,13 @@ function RelatorioAuditoriaGastos({ db }) {
 function RelatorioAuditoria({ db }) {
   const auditoriaPDFRef = useRef(null);
   const [gerando, setGerando] = useState(false);
+
+  useEffect(() => {
+    const style = document.createElement("style");
+    style.innerHTML = "@media print { body * { visibility: hidden; } #auditoria-pdf-area, #auditoria-pdf-area * { visibility: visible; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; } #auditoria-pdf-area { position: absolute; left: 0; top: 0; width: 100%; min-height: 0 !important; margin: 0; box-shadow: none !important; } .page-break-before { break-before: page; page-break-before: always; } @page { margin: 14mm; } }";
+    document.head.appendChild(style);
+    return () => { document.head.removeChild(style); };
+  }, []);
 
   if (!db.cambistas || db.cambistas.length === 0) {
     return (
