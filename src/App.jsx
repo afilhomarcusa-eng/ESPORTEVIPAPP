@@ -128,6 +128,184 @@ function metaDoPeriodo(metaMensal, gran) {
   return null;
 }
 
+/* ======================== ANÁLISE HISTÓRICA ======================== */
+const ANALISE_THRESHOLDS = {
+  desviosPadrao: 2,
+  percentualMinimoVariacao: 0.1,
+  toleranciaValorRedondo: 0.01,
+  minSemanasParaAnalise: 4,
+  maxInatividade: 4,
+  alertaCriterioDia: 1,
+};
+
+function semanasHistorico(cambista, lancamentos, pagamentos) {
+  if (!cambista) return [];
+  const semanas = {};
+  const todosLancs = lancamentos.filter((l) => l.cambistaId === cambista.id);
+  const todosPagtos = pagamentos.filter((p) => p.cambistaId === cambista.id);
+
+  for (const lanc of todosLancs) {
+    const data = parse(lanc.data);
+    const [s, e] = periodRange("semana", data);
+    const chave = `${s.getFullYear()}-${pad(s.getMonth() + 1)}-${pad(s.getDate())}`;
+    if (!semanas[chave]) semanas[chave] = { s, e, lancs: [], pagtos: [], dias: new Set() };
+    semanas[chave].lancs.push(lanc);
+    semanas[chave].dias.add(data.getDate());
+  }
+
+  for (const pagto of todosPagtos) {
+    const data = parse(pagto.data);
+    const [s, e] = periodRange("semana", data);
+    const chave = `${s.getFullYear()}-${pad(s.getMonth() + 1)}-${pad(s.getDate())}`;
+    if (!semanas[chave]) semanas[chave] = { s, e, lancs: [], pagtos: [], dias: new Set() };
+    semanas[chave].pagtos.push(pagto);
+  }
+
+  return Object.entries(semanas)
+    .map(([chave, s]) => ({ chave, ...s, diasAtivos: s.dias.size, agreAgrega: agrega(s.lancs, { [cambista.id]: cambista }) }))
+    .sort((a, b) => a.s - b.s);
+}
+
+function calcularEstatisticas(valores) {
+  if (valores.length === 0) return { media: 0, desvPadrao: 0, min: 0, max: 0 };
+  const media = valores.reduce((a, v) => a + v, 0) / valores.length;
+  const variancia = valores.reduce((a, v) => a + Math.pow(v - media, 2), 0) / valores.length;
+  const desvPadrao = Math.sqrt(variancia);
+  return { media, desvPadrao, min: Math.min(...valores), max: Math.max(...valores) };
+}
+
+function analiseAnomalias(semanas, cambista) {
+  const alertas = [];
+  if (semanas.length < ANALISE_THRESHOLDS.minSemanasParaAnalise) {
+    return [{ tipo: "aviso", severidade: "baixo", titulo: "Histórico curto", descricao: `Apenas ${semanas.length} semanas de dados. Análise com baixa confiança estatística.` }];
+  }
+
+  const brutons = semanas.map((s) => s.agreAgrega.bruto);
+  const pagtos = semanas.map((s) => s.agreAgrega.comissao);
+  const razaoPagtoComissao = semanas.map((s) => s.agreAgrega.comissao > 0 ? 0 : (s.pagtos.reduce((a, p) => a + p.valor, 0) / Math.max(1, s.agreAgrega.comissao)));
+
+  const estatBruto = calcularEstatisticas(brutons);
+
+  // Detecção de outliers
+  for (let i = 0; i < semanas.length; i++) {
+    const bruto = brutons[i];
+    const zScore = (bruto - estatBruto.media) / Math.max(0.01, estatBruto.desvPadrao);
+    if (Math.abs(zScore) > ANALISE_THRESHOLDS.desviosPadrao) {
+      alertas.push({
+        tipo: "outlier",
+        severidade: bruto < estatBruto.media ? "alto" : "medio",
+        semana: semanas[i],
+        titulo: bruto < estatBruto.media ? "Semana com bruto anormalmente baixo" : "Semana com bruto anormalmente alto",
+        descricao: `Semana ${i + 1}: R$ ${brl(bruto)} (${(zScore > 0 ? "+" : "")}${zScore.toFixed(2)} desvios). Esperado: R$ ${brl(estatBruto.media)} ± R$ ${brl(estatBruto.desvPadrao)}`,
+        valor: bruto,
+      });
+    }
+  }
+
+  // Valores redondos suspeitos
+  const valoresRedondos = semanas.filter((s) => {
+    const bruto = s.agreAgrega.bruto;
+    return bruto > 0 && Math.abs(bruto - Math.round(bruto / 100) * 100) < ANALISE_THRESHOLDS.toleranciaValorRedondo * 1000;
+  });
+  if (valoresRedondos.length > 2) {
+    alertas.push({
+      tipo: "valoresRedondos",
+      severidade: "medio",
+      titulo: "Padrão de valores redondos detectado",
+      descricao: `${valoresRedondos.length} semanas com valores redondos. Semanas: ${valoresRedondos.map((s, i) => `${i + 1}`).join(", ")}`,
+      semanas: valoresRedondos,
+    });
+  }
+
+  // Tendência de declínio
+  if (brutons.length >= 4) {
+    const primeiraMetade = brutons.slice(0, Math.floor(brutons.length / 2)).reduce((a, v) => a + v, 0) / Math.floor(brutons.length / 2);
+    const segundaMetade = brutons.slice(Math.floor(brutons.length / 2)).reduce((a, v) => a + v, 0) / Math.ceil(brutons.length / 2);
+    const percentualQueda = ((primeiraMetade - segundaMetade) / Math.max(1, primeiraMetade)) * 100;
+    if (percentualQueda > ANALISE_THRESHOLDS.percentualMinimoVariacao * 100) {
+      alertas.push({
+        tipo: "tendencia",
+        severidade: percentualQueda > 30 ? "alto" : "medio",
+        titulo: "Tendência de declínio de bruto",
+        descricao: `${percentualQueda.toFixed(1)}% de queda do bruto. Primeira metade: R$ ${brl(primeiraMetade)}, segunda metade: R$ ${brl(segundaMetade)}`,
+        percentual: percentualQueda,
+      });
+    }
+  }
+
+  // Inatividade
+  const sequenciaInatividade = [];
+  let atual = 0;
+  for (const s of semanas) {
+    if (s.agreAgrega.bruto < 0.01) {
+      atual++;
+      if (atual > ANALISE_THRESHOLDS.maxInatividade) {
+        sequenciaInatividade.push({ semana: s, duracao: atual });
+      }
+    } else atual = 0;
+  }
+  if (sequenciaInatividade.length > 0) {
+    alertas.push({
+      tipo: "inatividade",
+      severidade: "medio",
+      titulo: "Períodos longos de inatividade",
+      descricao: `Detectadas ${sequenciaInatividade.length} sequência(s) com mais de ${ANALISE_THRESHOLDS.maxInatividade} semanas inativas`,
+      sequencias: sequenciaInatividade,
+    });
+  }
+
+  // Débito recorrente
+  const semanasDevedor = semanas.filter((s) => s.agreAgrega.receber < -0.01);
+  if (semanasDevedor.length > semanas.length * 0.3) {
+    alertas.push({
+      tipo: "devedorRecorrente",
+      severidade: "alto",
+      titulo: "Cambista frequentemente em débito",
+      descricao: `${semanasDevedor.length}/${semanas.length} semanas (${(semanasDevedor.length / semanas.length * 100).toFixed(1)}%) com recebível negativo (cambista em débito com a casa)`,
+      semanas: semanasDevedor,
+    });
+  }
+
+  return alertas;
+}
+
+function calcularScoreHistorico(semanas, cambista) {
+  if (semanas.length < 1) return 0;
+
+  let score = 50;
+  const brutons = semanas.map((s) => s.agreAgrega.bruto);
+  const pagtos = semanas.map((s) => s.agreAgrega.comissao > 0 ? 1 : 0);
+
+  // Volume (0-20 pts)
+  const volumeTotal = brutons.reduce((a, v) => a + v, 0);
+  score += Math.min(20, (volumeTotal / 100000) * 20);
+
+  // Consistência (0-20 pts)
+  const estat = calcularEstatisticas(brutons);
+  const cv = estat.media > 0 ? (estat.desvPadrao / estat.media) : 0;
+  score += Math.max(0, 20 - cv * 10);
+
+  // Pontualidade (0-20 pts)
+  const pctPago = pagtos.reduce((a, v) => a + v, 0) / pagtos.length;
+  score += pctPago * 20;
+
+  // Tendência (0-20 pts)
+  if (semanas.length >= 2) {
+    const ultimoTerco = brutons.slice(-Math.ceil(brutons.length / 3));
+    const mediaUltimo = ultimoTerco.reduce((a, v) => a + v, 0) / ultimoTerco.length;
+    if (mediaUltimo > estat.media) score += 20;
+    else if (mediaUltimo < estat.media * 0.8) score -= 10;
+  }
+
+  return Math.max(0, Math.min(100, score));
+}
+
+function classificarRisco(score) {
+  if (score >= 75) return { classificacao: "Confiável", cor: "emerald" };
+  if (score >= 50) return { classificacao: "Atenção", cor: "amber" };
+  return { classificacao: "Alto Risco", cor: "rose" };
+}
+
 function cambistasInativos(cambistas, lancamentos, limite = 7) {
   const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
   return cambistas.filter((c) => c.ativo).map((c) => {
@@ -1377,6 +1555,7 @@ function GastosControl({ db, update, gran, ref_, range }) {
 
 /* ======================== RELATÓRIOS ======================== */
 function Relatorios({ db, cambById, lancs, gran, ref_, preSelecionar, onConsumir }) {
+  const [tipoRelatorio, setTipoRelatorio] = useState("semanal");
   const [modo, setModo] = useState("paga");
   const [cambistaSel, setCambistaSel] = useState("");
   const [nome, setNome] = useState("");
@@ -1480,13 +1659,31 @@ function Relatorios({ db, cambById, lancs, gran, ref_, preSelecionar, onConsumir
 
   const inpDark = "w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500 placeholder:text-slate-600";
 
+  if (tipoRelatorio === "auditoria") {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex gap-2">
+            <button onClick={() => setTipoRelatorio("semanal")} className="text-sm px-4 py-2 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600">← Voltar ao Semanal</button>
+          </div>
+        </div>
+        <RelatorioAuditoria db={db} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="text-sm text-slate-500">Gerador de Relatório de Fechamento</div>
-        <button onClick={() => exportarExcel({ db })} className="inline-flex items-center gap-2 text-xs border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 rounded-lg px-3 py-1.5">
-          <FileSpreadsheet size={13} /> Exportar Dados (.xlsx)
-        </button>
+        <div className="flex gap-2 flex-wrap">
+          <button onClick={() => exportarExcel({ db })} className="inline-flex items-center gap-2 text-xs border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 rounded-lg px-3 py-1.5">
+            <FileSpreadsheet size={13} /> Exportar Dados (.xlsx)
+          </button>
+          <button onClick={() => setTipoRelatorio("auditoria")} className="inline-flex items-center gap-2 text-xs border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg px-3 py-1.5">
+            <FileText size={13} /> Auditoria Completa
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[380px,1fr] gap-5">
@@ -1643,6 +1840,226 @@ function Relatorios({ db, cambById, lancs, gran, ref_, preSelecionar, onConsumir
               </div>
             )}
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ======================== RELATÓRIO DE AUDITORIA ======================== */
+function RelatorioAuditoria({ db }) {
+  const auditoriaPDFRef = useRef(null);
+  const [gerando, setGerando] = useState(false);
+
+  if (!db.cambistas || db.cambistas.length === 0) {
+    return (
+      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-center text-amber-700 text-sm">
+        Nenhum cambista cadastrado. Crie cambistas para gerar o relatório de auditoria.
+      </div>
+    );
+  }
+
+  const gerarPdf = async () => {
+    if (!auditoriaPDFRef.current) return;
+    setGerando(true);
+    try {
+      const canvas = await window.html2canvas(auditoriaPDFRef.current, { backgroundColor: "#ffffff", scale: 2, useCORS: true });
+      const link = document.createElement("a");
+      link.download = `auditoria-completa-${iso(new Date()).replace(/-/g, "-")}.png`;
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    } catch (err) {
+      alert("Erro ao gerar PDF: " + err.message);
+    } finally {
+      setGerando(false);
+    }
+  };
+
+  const salvarPdf = () => window.print();
+
+  const brutonsTotais = {};
+  const comissaoTotais = {};
+  const pagosTotais = {};
+  const recebidosTotais = {};
+  let primeiraData = null;
+  let ultimaData = null;
+
+  for (const cambista of db.cambistas.filter((c) => c.ativo)) {
+    const semanas = semanasHistorico(cambista, db.lancamentos || [], db.pagamentos || []);
+    if (semanas.length === 0) continue;
+
+    brutonsTotais[cambista.id] = semanas.reduce((a, s) => a + s.agreAgrega.bruto, 0);
+    comissaoTotais[cambista.id] = semanas.reduce((a, s) => a + s.agreAgrega.comissao, 0);
+    pagosTotais[cambista.id] = semanas.reduce((a, s) => a + s.pagtos.reduce((p, x) => p + x.valor, 0), 0);
+    recebidosTotais[cambista.id] = semanas.reduce((a, s) => a + s.agreAgrega.receber, 0);
+
+    if (!primeiraData || semanas[0].s < primeiraData) primeiraData = semanas[0].s;
+    if (!ultimaData || semanas[semanas.length - 1].e > ultimaData) ultimaData = semanas[semanas.length - 1].e;
+  }
+
+  const totalBruto = Object.values(brutonsTotais).reduce((a, v) => a + v, 0);
+  const totalComissao = Object.values(comissaoTotais).reduce((a, v) => a + v, 0);
+  const totalPago = Object.values(pagosTotais).reduce((a, v) => a + v, 0);
+  const totalRecebido = Object.values(recebidosTotais).reduce((a, v) => a + v, 0);
+  const cambistaEmAtraso = db.cambistas.filter((c) => c.ativo && recebidosTotais[c.id] > 0.01).length;
+  const taxaInadimplencia = db.cambistas.filter((c) => c.ativo).length > 0 ? (cambistaEmAtraso / db.cambistas.filter((c) => c.ativo).length) * 100 : 0;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="text-sm text-slate-500">Análise de Fraude e Desempenho - Histórico Completo</div>
+        <div className="flex gap-2 flex-wrap">
+          <button onClick={gerarPdf} disabled={gerando} className="inline-flex items-center gap-2 text-xs border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 rounded-lg px-3 py-1.5 disabled:opacity-50">
+            {gerando ? "Gerando..." : "Baixar como Imagem"}
+          </button>
+          <button onClick={salvarPdf} className="inline-flex items-center gap-2 text-xs border border-orange-200 bg-orange-50 hover:bg-orange-100 text-orange-700 rounded-lg px-3 py-1.5">
+            <Printer size={13} /> Salvar como PDF
+          </button>
+        </div>
+      </div>
+
+      <div id="auditoria-pdf-area" ref={auditoriaPDFRef} className="bg-white p-8 space-y-6" style={{ minHeight: "1000px", fontFamily: "system-ui" }}>
+        <div className="text-center border-b pb-6">
+          <h1 className="text-4xl font-black text-slate-900">RELATÓRIO DE AUDITORIA COMPLETA</h1>
+          <p className="text-sm text-slate-500 mt-2">Análise de Fraude e Desempenho Histórico</p>
+          <p className="text-xs text-slate-400 mt-1">Período: {primeiraData ? `${fmtData(iso(primeiraData))} a ${fmtData(iso(ultimaData))}` : "Sem dados"}</p>
+        </div>
+
+        <div className="space-y-4">
+          <h2 className="text-2xl font-bold text-slate-900">Resumo Executivo Geral</h2>
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+            <div className="border rounded-lg p-3 bg-slate-50">
+              <div className="text-xs text-slate-500 font-medium">Bruto Total</div>
+              <div className="text-lg font-bold text-slate-900 tabular-nums">{brl(totalBruto)}</div>
+            </div>
+            <div className="border rounded-lg p-3 bg-slate-50">
+              <div className="text-xs text-slate-500 font-medium">Comissão Total</div>
+              <div className="text-lg font-bold text-slate-900 tabular-nums">{brl(totalComissao)}</div>
+            </div>
+            <div className="border rounded-lg p-3 bg-slate-50">
+              <div className="text-xs text-slate-500 font-medium">Pago</div>
+              <div className="text-lg font-bold text-slate-900 tabular-nums">{brl(totalPago)}</div>
+            </div>
+            <div className="border rounded-lg p-3 bg-emerald-50">
+              <div className="text-xs text-emerald-600 font-medium">Líquido</div>
+              <div className="text-lg font-bold text-emerald-700 tabular-nums">{brl(totalRecebido)}</div>
+            </div>
+            <div className="border rounded-lg p-3 bg-rose-50">
+              <div className="text-xs text-rose-600 font-medium">Inadimplência</div>
+              <div className="text-lg font-bold text-rose-700 tabular-nums">{taxaInadimplencia.toFixed(1)}%</div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+            <div className="bg-slate-100 p-2 rounded"><span className="text-slate-600">Cambistas Ativos:</span> <span className="font-bold">{db.cambistas.filter((c) => c.ativo).length}</span></div>
+            <div className="bg-slate-100 p-2 rounded"><span className="text-slate-600">Semanas Analisadas:</span> <span className="font-bold">{new Set(db.lancamentos.map((l) => `${parse(l.data).getFullYear()}-W${Math.ceil((parse(l.data).getDate() - parse(l.data).getDay() + 10) / 7)}`)).size}</span></div>
+            <div className="bg-rose-100 p-2 rounded"><span className="text-rose-600">Em Atraso:</span> <span className="font-bold">{cambistaEmAtraso}</span></div>
+            <div className="bg-amber-100 p-2 rounded"><span className="text-amber-600">Risco Médio:</span> <span className="font-bold">Análise Concluída</span></div>
+          </div>
+        </div>
+
+        {db.cambistas.filter((c) => c.ativo).map((cambista) => {
+          const semanas = semanasHistorico(cambista, db.lancamentos || [], db.pagamentos || []);
+          if (semanas.length === 0) return null;
+
+          const alertas = analiseAnomalias(semanas, cambista);
+          const score = calcularScoreHistorico(semanas, cambista);
+          const risco = classificarRisco(score);
+          const brutons = semanas.map((s) => s.agreAgrega.bruto);
+          const estat = calcularEstatisticas(brutons);
+          const semanasDevedor = semanas.filter((s) => s.agreAgrega.receber < -0.01);
+
+          return (
+            <div key={cambista.id} className="page-break-before pt-6 border-t-2 border-slate-200">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900">{cambista.nome}</h3>
+                  <p className="text-xs text-slate-500">{cambista.contato || "Sem contato"} | Comissão padrão: {pct(cambista.comissaoPadrao)}</p>
+                </div>
+                <div className={`px-3 py-1 rounded-lg text-xs font-bold text-white bg-${risco.cor}-600`}>
+                  {risco.classificacao} (Score: {score.toFixed(0)})
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-4 text-xs">
+                <div className="bg-slate-50 p-2 rounded"><span className="text-slate-600">Bruto:</span> <span className="font-bold">{brl(brutonsTotais[cambista.id])}</span></div>
+                <div className="bg-slate-50 p-2 rounded"><span className="text-slate-600">Comissão:</span> <span className="font-bold">{brl(comissaoTotais[cambista.id])}</span></div>
+                <div className="bg-slate-50 p-2 rounded"><span className="text-slate-600">Pago:</span> <span className="font-bold">{brl(pagosTotais[cambista.id])}</span></div>
+                <div className={`p-2 rounded ${recebidosTotais[cambista.id] > 0.01 ? "bg-rose-50" : "bg-emerald-50"}`}><span className={`${recebidosTotais[cambista.id] > 0.01 ? "text-rose-600" : "text-emerald-600"}`}>Recebível:</span> <span className="font-bold">{brl(recebidosTotais[cambista.id])}</span></div>
+              </div>
+
+              <table className="w-full text-xs mb-4 border-collapse">
+                <thead>
+                  <tr className="bg-slate-100">
+                    <th className="border p-1 text-left">Sem</th>
+                    <th className="border p-1 text-left">Período</th>
+                    <th className="border p-1 text-right">Bruto</th>
+                    <th className="border p-1 text-right">Comissão</th>
+                    <th className="border p-1 text-right">Pago</th>
+                    <th className="border p-1 text-right">Saldo</th>
+                    <th className="border p-1 text-center">Dias</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {semanas.map((s, i) => (
+                    <tr key={i} className="hover:bg-slate-50">
+                      <td className="border p-1">{i + 1}</td>
+                      <td className="border p-1 text-xs">{pad(s.s.getDate())}/{pad(s.s.getMonth() + 1)}–{pad(s.e.getDate())}/{pad(s.e.getMonth() + 1)}</td>
+                      <td className="border p-1 text-right tabular-nums">{brl(s.agreAgrega.bruto)}</td>
+                      <td className="border p-1 text-right tabular-nums">{brl(s.agreAgrega.comissao)}</td>
+                      <td className="border p-1 text-right tabular-nums">{brl(s.pagtos.reduce((a, p) => a + p.valor, 0))}</td>
+                      <td className={`border p-1 text-right tabular-nums ${s.agreAgrega.receber < -0.01 ? "text-emerald-600 font-bold" : s.agreAgrega.receber > 0.01 ? "text-rose-600 font-bold" : ""}`}>{brl(s.agreAgrega.receber)}</td>
+                      <td className="border p-1 text-center">{s.diasAtivos}</td>
+                    </tr>
+                  ))}
+                  <tr className="bg-slate-100 font-bold">
+                    <td className="border p-1" colSpan="2">Totais / Média</td>
+                    <td className="border p-1 text-right tabular-nums">{brl(brutonsTotais[cambista.id])} / {brl(estat.media)}</td>
+                    <td className="border p-1 text-right tabular-nums">{brl(comissaoTotais[cambista.id])}</td>
+                    <td className="border p-1 text-right tabular-nums">{brl(pagosTotais[cambista.id])}</td>
+                    <td className="border p-1 text-right tabular-nums">{brl(recebidosTotais[cambista.id])}</td>
+                    <td className="border p-1 text-center">-</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div className="mb-4">
+                <h4 className="font-bold text-sm mb-2">Estatísticas</h4>
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div className="bg-blue-50 p-2 rounded"><span className="text-blue-600">Desvio Padrão:</span> <span className="font-bold">{brl(estat.desvPadrao)}</span></div>
+                  <div className="bg-blue-50 p-2 rounded"><span className="text-blue-600">Min:</span> <span className="font-bold">{brl(estat.min)}</span></div>
+                  <div className="bg-blue-50 p-2 rounded"><span className="text-blue-600">Max:</span> <span className="font-bold">{brl(estat.max)}</span></div>
+                </div>
+              </div>
+
+              {alertas.length > 0 && (
+                <div className="mb-4 bg-yellow-50 border border-yellow-200 rounded p-3">
+                  <h4 className="font-bold text-sm mb-2 text-yellow-800">Alertas Detectados</h4>
+                  <ul className="text-xs space-y-1">
+                    {alertas.map((alerta, i) => (
+                      <li key={i} className="text-yellow-700">• [{alerta.severidade.toUpperCase()}] {alerta.titulo}: {alerta.descricao}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {semanasDevedor.length > 0 && (
+                <div className="mb-4 bg-rose-50 border border-rose-200 rounded p-3">
+                  <h4 className="font-bold text-sm mb-2 text-rose-800">Semanas em Débito ({semanasDevedor.length})</h4>
+                  <p className="text-xs text-rose-700">Cambista estava em débito com a casa em {semanasDevedor.length} semanas ({(semanasDevedor.length / semanas.length * 100).toFixed(1)}% do histórico)</p>
+                </div>
+              )}
+
+              <div className="text-xs text-slate-600 p-2 bg-slate-50 rounded">
+                <strong>Recomendação:</strong> {risco.classificacao === "Confiável" ? "Cambista com desempenho consistente. Manter monitoramento regular." : risco.classificacao === "Atenção" ? "Investigar padrões detectados. Aumentar frequência de checagem." : "Revisão imediata recomendada. Considerar restrição de crédito ou auditoria aprofundada."}
+              </div>
+            </div>
+          );
+        })}
+
+        <div className="mt-8 pt-6 border-t-2 border-slate-200 text-xs text-slate-500 text-center">
+          <p>Relatório gerado em {fmtData(iso(new Date()))} às {new Date().toLocaleTimeString("pt-BR")}</p>
+          <p>ESPORTEVIPAPP - Sistema de Análise de Cambistas</p>
         </div>
       </div>
     </div>
