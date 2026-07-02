@@ -90,6 +90,11 @@ function rotuloPeriodo(gran, ref) {
   if (gran === "mes") return `${MESES_L[ref.getMonth()]} de ${ref.getFullYear()}`;
   return `${pad(s.getDate())}/${pad(s.getMonth()+1)} a ${pad(e.getDate())}/${pad(e.getMonth()+1)}`;
 }
+function isoDatesForPeriod(gran, ref) {
+  const [s, e] = periodRange(gran, ref);
+  return [iso(s), iso(e)];
+}
+
 function rotuloCurto(g, r) {
   if (g === "ano") return `${r.getFullYear()}`;
   if (g === "mes") return `${MESES[r.getMonth()]}/${String(r.getFullYear()).slice(2)}`;
@@ -776,11 +781,22 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range, gerarRelatorio 
     });
   };
 
+  const setPeriodDates = (gran) => {
+    const [dtInicio, dtFim] = isoDatesForPeriod(gran, new Date());
+    setDtDe(dtInicio);
+    setDtAte(dtFim);
+  };
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-3 flex-wrap">
           <div className="text-sm text-slate-500">Período: <span className="font-medium text-slate-700">{custom ? `${fmtData(dtDe)} a ${fmtData(dtAte)}` : rotulo}</span></div>
+          <div className="flex rounded-lg border border-slate-200 overflow-hidden w-fit">
+            {[["semana","Semanal"],["quinzena","Quinzenal"],["mes","Mensal"],["ano","Anual"]].map(([id, lab]) => (
+              <button key={id} onClick={() => setPeriodDates(id)} className="px-2.5 py-1.5 text-xs font-medium hover:bg-slate-50 border-r border-slate-200 last:border-0 text-slate-600 transition">{lab}</button>
+            ))}
+          </div>
           <div className={`flex items-center gap-1.5 text-xs border rounded-lg px-2.5 py-1.5 ${custom ? "border-orange-300 bg-orange-50" : "border-slate-200 bg-white"}`}>
             <span className="text-slate-400">De</span>
             <input type="date" value={dtDe} onChange={(ev) => setDtDe(ev.target.value)} className="outline-none bg-transparent text-slate-700" />
@@ -805,24 +821,25 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range, gerarRelatorio 
           </button>
         </div>
       </div>
-      <div className="text-xs text-slate-400 -mt-3">A planilha é a ponte com o Excel: exporte para editar fora do app, importe para trazer as mudanças de volta. Não é uma sincronização automática. <span className="text-slate-500">Toque em um cambista para ver detalhes, no botão laranja <span className="inline-flex items-center align-middle"><Plus size={11} /></span> para lançar quanto ele movimentou, ou no verde <span className="inline-flex items-center align-middle"><FileText size={11} /></span> para gerar o relatório semanal dele.</span></div>
 
-      {ranking.length > 0 && (
+      {linhas.length > 0 && (
         <div>
-          <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2"><Trophy size={16} className="text-orange-500" /> Ranking do Período</div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {ranking.map((item, i) => {
-              const st = rankStyles[i];
-              return (
-                <div key={item.c.id} className={`rounded-xl border p-3 flex items-center gap-3 min-w-0 ${st.card}`}>
-                  <span className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${st.badge}`}>{i + 1}</span>
-                  <div className="min-w-0">
-                    <div className="text-sm font-semibold text-slate-800 truncate">{item.c.nome}</div>
-                    <div className="text-xs text-slate-500 tabular-nums">{brl(item.receber)} no período</div>
-                  </div>
-                </div>
-              );
-            })}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+              <div className="text-xs font-medium text-emerald-700 mb-1">Total a Receber</div>
+              <div className="text-2xl font-bold text-emerald-900 tabular-nums">{brl(linhas.reduce((a, r) => a + Math.max(0, r.receber), 0))}</div>
+              <div className="text-[11px] text-emerald-600 mt-1">cambistas para cobrar</div>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div className="text-xs font-medium text-slate-700 mb-1">Total Recebido</div>
+              <div className="text-2xl font-bold text-slate-900 tabular-nums">{brl(linhas.reduce((a, r) => a + r.pago, 0))}</div>
+              <div className="text-[11px] text-slate-600 mt-1">já quitado no período</div>
+            </div>
+            <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
+              <div className="text-xs font-medium text-rose-700 mb-1">Taxa de Inadimplência</div>
+              <div className="text-2xl font-bold text-rose-900 tabular-nums">{linhas.length > 0 ? ((linhas.filter((r) => r.receber > 0.01).length / linhas.length) * 100).toFixed(1) : "0"}%</div>
+              <div className="text-[11px] text-rose-600 mt-1">{linhas.filter((r) => r.receber > 0.01).length} de {linhas.length} cambistas</div>
+            </div>
           </div>
         </div>
       )}
@@ -836,6 +853,7 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range, gerarRelatorio 
                 <th className="px-4 py-3 font-medium text-right">Bruto</th>
                 <th className="px-4 py-3 font-medium text-right">Comissão</th>
                 <th className="px-4 py-3 font-medium text-right">Pago</th>
+                <th className="px-4 py-3 font-medium text-right">Saldo</th>
                 <th className="px-4 py-3 font-medium text-center">Status</th>
                 <th className="px-4 py-3"></th>
               </tr>
@@ -850,32 +868,39 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range, gerarRelatorio 
                   <td className={`px-4 py-3 text-right tabular-nums ${bruto < 0 ? "text-rose-600" : "text-slate-700"}`}>{brl(bruto)}</td>
                   <td className={`px-4 py-3 text-right tabular-nums font-semibold ${comissao < 0 ? "text-rose-600" : "text-slate-900"}`}>{brl(comissao)}</td>
                   <td className="px-4 py-3 text-right tabular-nums text-slate-500">{brl(pago)}</td>
+                  <td className={`px-4 py-3 text-right tabular-nums font-semibold ${receber < 0 ? "text-emerald-600" : receber > 0.01 ? "text-rose-600" : "text-slate-700"}`}>{brl(saldo)}</td>
                   <td className="px-4 py-3 text-center">
                     {receber < 0 ? (
-                      <span className="inline-flex items-center gap-1 text-[11px] bg-rose-50 text-rose-700 rounded-full px-2 py-1 tabular-nums"><AlertTriangle size={12} /> Devedor {brl(receber)}</span>
+                      <span className="inline-flex items-center gap-1 text-[11px] bg-emerald-50 text-emerald-700 rounded-full px-2 py-1"><CheckCircle2 size={12} /> Devedor</span>
                     ) : saldo <= 0.01 ? (
-                      <span className="inline-flex items-center gap-1 text-[11px] bg-emerald-50 text-emerald-700 rounded-full px-2 py-1"><CheckCircle2 size={12} /> Em dia</span>
+                      <span className="inline-flex items-center gap-1 text-[11px] bg-slate-100 text-slate-700 rounded-full px-2 py-1"><CheckCircle2 size={12} /> Em dia</span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 text-[11px] bg-amber-50 text-amber-700 rounded-full px-2 py-1 tabular-nums">{brl(saldo)} pendente</span>
+                      <span className="inline-flex items-center gap-1 text-[11px] bg-rose-50 text-rose-700 rounded-full px-2 py-1"><AlertTriangle size={12} /> Pendente</span>
                     )}
                   </td>
                   <td className="px-4 py-3" onClick={(ev) => ev.stopPropagation()}>
                     <div className="flex gap-1 justify-end">
-                      <button onClick={() => setLancar({ cambistaId: c.id, nome: c.nome, comissaoPadrao: c.comissaoPadrao })} title="Novo lançamento (valor movimentado)" className="p-1.5 rounded-md hover:bg-orange-100 bg-orange-50 text-orange-600"><Plus size={14} /></button>
-                      <button onClick={() => gerarRelatorio && gerarRelatorio(c.id)} title="Gerar relatório semanal deste cambista" className="p-1.5 rounded-md hover:bg-emerald-100 bg-emerald-50 text-emerald-600"><FileText size={14} /></button>
-                      <button onClick={() => setPagar({ cambistaId: c.id, nome: c.nome, valor: saldo > 0 ? saldo.toFixed(2) : "", data: iso(new Date()), obs: "" })} title="Registrar pagamento" className="p-1.5 rounded-md hover:bg-orange-50 text-orange-600"><Banknote size={14} /></button>
-                      <button onClick={() => setEditar({ ...c })} className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500"><Pencil size={14} /></button>
-                      <button onClick={() => {
-                        if (confirm(`CUIDADO: Excluir ${c.nome}?\n\nTodos os lançamentos dele também serão removidos. Esta ação é irreversível.\n\nClique OK para confirmar.`)) {
-                          if (confirm(`Tem certeza? Clique OK NOVAMENTE para deletar ${c.nome}.`)) {
-                            registrarAuditoria("deletar_cambista", { id: c.id, nome: c.nome });
-                            update((d) => {
-                              d.cambistas = d.cambistas.filter((x) => x.id !== c.id);
-                              d.lancamentos = d.lancamentos.filter((l) => l.cambistaId !== c.id);
-                            });
-                          }
-                        }
-                      }} className="p-1.5 rounded-md hover:bg-rose-50 text-rose-500"><Trash2 size={14} /></button>
+                      <div className="relative group/menu">
+                        <button title="Ações" className="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 transition"><svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg></button>
+                        <div className="hidden group-hover/menu:block absolute right-0 mt-1 w-40 bg-white border border-slate-200 rounded-lg shadow-lg z-10 py-1">
+                          <button onClick={() => setLancar({ cambistaId: c.id, nome: c.nome, comissaoPadrao: c.comissaoPadrao })} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"><Plus size={14} className="text-orange-600" /> Novo lançamento</button>
+                          <button onClick={() => gerarRelatorio && gerarRelatorio(c.id)} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"><FileText size={14} className="text-emerald-600" /> Relatório semanal</button>
+                          <button onClick={() => setPagar({ cambistaId: c.id, nome: c.nome, valor: saldo > 0 ? saldo.toFixed(2) : "", data: iso(new Date()), obs: "" })} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"><Banknote size={14} className="text-orange-600" /> Registrar pagamento</button>
+                          <button onClick={() => setEditar({ ...c })} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"><Pencil size={14} /> Editar</button>
+                          <div className="border-t border-slate-100"></div>
+                          <button onClick={() => {
+                            if (confirm(`CUIDADO: Excluir ${c.nome}?\n\nTodos os lançamentos dele também serão removidos. Esta ação é irreversível.\n\nClique OK para confirmar.`)) {
+                              if (confirm(`Tem certeza? Clique OK NOVAMENTE para deletar ${c.nome}.`)) {
+                                registrarAuditoria("deletar_cambista", { id: c.id, nome: c.nome });
+                                update((d) => {
+                                  d.cambistas = d.cambistas.filter((x) => x.id !== c.id);
+                                  d.lancamentos = d.lancamentos.filter((l) => l.cambistaId !== c.id);
+                                });
+                              }
+                            }
+                          }} className="w-full text-left px-4 py-2 text-sm text-rose-600 hover:bg-rose-50 flex items-center gap-2"><Trash2 size={14} /> Deletar</button>
+                        </div>
+                      </div>
                     </div>
                   </td>
                 </tr>
@@ -889,6 +914,12 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range, gerarRelatorio 
                   <td className="px-4 py-3 text-right tabular-nums">{brl(linhas.reduce((a, r) => a + r.bruto, 0))}</td>
                   <td className="px-4 py-3 text-right tabular-nums">{brl(linhas.reduce((a, r) => a + r.comissao, 0))}</td>
                   <td className="px-4 py-3 text-right tabular-nums text-slate-500">{brl(linhas.reduce((a, r) => a + r.pago, 0))}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">
+                    {(() => {
+                      const totSaldo = linhas.reduce((a, r) => a + r.saldo, 0);
+                      return <span className={`${totSaldo > 0.01 ? "text-rose-600" : totSaldo < -0.01 ? "text-emerald-600" : "text-slate-700"}`}>{brl(totSaldo)}</span>;
+                    })()}
+                  </td>
                   <td className="px-4 py-3 text-center">
                     {(() => {
                       const totReceber = linhas.reduce((a, r) => a + r.receber, 0);
