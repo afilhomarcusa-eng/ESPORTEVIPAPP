@@ -953,24 +953,21 @@ function PeriodPicker({ gran, setGran, ref_, setRef, opts }) {
 }
 
 /* ======================== CARD KPI ======================== */
-const KPI_CORES = {
-  slate: "bg-slate-100 text-slate-700",
-  amber: "bg-amber-50 text-amber-600",
-  orange: "bg-orange-50 text-orange-600",
-  indigo: "bg-indigo-50 text-indigo-600",
-  emerald: "bg-emerald-100 text-emerald-700",
-  rose: "bg-rose-50 text-rose-600",
+const KPI_ACCENT = {
+  slate: "border-l-slate-400",
+  amber: "border-l-amber-500",
+  orange: "border-l-orange-500",
+  indigo: "border-l-indigo-500",
+  emerald: "border-l-emerald-500",
+  rose: "border-l-rose-500",
 };
 
-function Kpi({ titulo, valor, delta, icon: Ic, cor = "orange", inverso = false, corValor = "text-slate-900" }) {
+function Kpi({ titulo, valor, delta, cor = "orange", inverso = false, corValor = "text-slate-900" }) {
   const bom = inverso ? (delta ?? 0) <= 0 : (delta ?? 0) >= 0;
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-card p-4 sm:p-5 min-w-0 transition-shadow duration-200 hover:shadow-card-hover">
-      <div className="flex items-center justify-between mb-3">
-        <span className={eyebrow}>{titulo}</span>
-        <span className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 ${KPI_CORES[cor] || KPI_CORES.orange}`}><Ic size={18} /></span>
-      </div>
-      <div title={valor} className={`text-lg sm:text-xl lg:text-2xl font-bold tabular-nums tracking-tight truncate ${corValor}`}>{valor}</div>
+    <div className={`bg-white rounded-lg border border-slate-200 border-l-4 ${KPI_ACCENT[cor] || KPI_ACCENT.orange} p-4 sm:p-5 min-w-0`}>
+      <span className={eyebrow}>{titulo}</span>
+      <div title={valor} className={`mt-2 text-lg sm:text-xl lg:text-2xl font-bold tabular-nums tracking-tight truncate ${corValor}`}>{valor}</div>
       {delta != null && isFinite(delta) && (
         <div className={`mt-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${bom ? "bg-emerald-100 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
           {bom ? <TrendingUp size={12} /> : <TrendingDown size={12} />} {pct(Math.abs(delta))}
@@ -980,7 +977,7 @@ function Kpi({ titulo, valor, delta, icon: Ic, cor = "orange", inverso = false, 
   );
 }
 
-const cardBox = "bg-white rounded-xl border border-slate-200 shadow-card p-5 min-w-0 transition-shadow duration-200";
+const cardBox = "bg-white rounded-lg border border-slate-200 p-5 min-w-0";
 const titSec = "text-sm font-semibold text-slate-800 mb-3";
 const eyebrow = "text-[11px] font-semibold uppercase tracking-wider text-slate-500";
 const inp = "w-full h-10 border border-slate-200 rounded-lg px-3 text-sm outline-none transition focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 placeholder:text-slate-400";
@@ -1397,7 +1394,7 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range, gerarRelatorio 
             <FileSpreadsheet size={15} /> Exportar Planilha
           </button>
           <button onClick={() => setEditar({ id: null, nome: "", contato: "", comissaoPadrao: 0.1, ativo: true })}
-            className="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-lg px-3 py-2 shadow-card transition-colors duration-150">
+            className="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-lg px-3 py-2 transition-colors duration-150">
             <Plus size={16} /> Novo Cambista
           </button>
         </div>
@@ -1405,34 +1402,25 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range, gerarRelatorio 
 
       {linhas.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-5">
-          <div className="rounded-xl border border-slate-200 shadow-card bg-white p-5 transition-shadow duration-200 hover:shadow-card-hover">
-            <div className="flex items-center justify-between mb-3">
-              <span className={eyebrow}>Total a Receber</span>
-              <span className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-emerald-50 text-emerald-600"><TrendingUp size={18} /></span>
-            </div>
-            <div className="text-2xl md:text-[28px] font-bold tabular-nums tracking-tight text-emerald-700">{brl(linhas.reduce((a, r) => a + Math.max(0, r.receber), 0))}</div>
+          <div className="rounded-lg border border-slate-200 border-l-4 border-l-emerald-500 bg-white p-5">
+            <span className={eyebrow}>Total a Receber</span>
+            <div className="text-2xl md:text-[28px] font-bold tabular-nums tracking-tight text-emerald-700 mt-2">{brl(linhas.reduce((a, r) => a + Math.max(0, r.receber), 0))}</div>
             <div className="text-xs text-slate-500 mt-1.5">cambistas para cobrar</div>
           </div>
-          <div className="rounded-xl border border-slate-200 shadow-card bg-white p-5 transition-shadow duration-200 hover:shadow-card-hover">
-            <div className="flex items-center justify-between mb-3">
-              <span className={eyebrow}>Total Recebido</span>
-              <span className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-slate-100 text-slate-600"><Banknote size={18} /></span>
-            </div>
-            <div className="text-2xl md:text-[28px] font-bold tabular-nums tracking-tight text-slate-900">{brl(linhas.reduce((a, r) => a + r.pago, 0))}</div>
+          <div className="rounded-lg border border-slate-200 border-l-4 border-l-slate-400 bg-white p-5">
+            <span className={eyebrow}>Total Recebido</span>
+            <div className="text-2xl md:text-[28px] font-bold tabular-nums tracking-tight text-slate-900 mt-2">{brl(linhas.reduce((a, r) => a + r.pago, 0))}</div>
             <div className="text-xs text-slate-500 mt-1.5">já quitado no período</div>
           </div>
-          <div className="rounded-xl border border-slate-200 shadow-card bg-white p-5 transition-shadow duration-200 hover:shadow-card-hover">
-            <div className="flex items-center justify-between mb-3">
-              <span className={eyebrow}>Taxa de Inadimplência</span>
-              <span className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-rose-50 text-rose-600"><AlertTriangle size={18} /></span>
-            </div>
-            <div className="text-2xl md:text-[28px] font-bold tabular-nums tracking-tight text-rose-700">{linhas.length > 0 ? ((linhas.filter((r) => r.receber > 0.01).length / linhas.length) * 100).toFixed(1) : "0"}%</div>
+          <div className="rounded-lg border border-slate-200 border-l-4 border-l-rose-500 bg-white p-5">
+            <span className={eyebrow}>Taxa de Inadimplência</span>
+            <div className="text-2xl md:text-[28px] font-bold tabular-nums tracking-tight text-rose-700 mt-2">{linhas.length > 0 ? ((linhas.filter((r) => r.receber > 0.01).length / linhas.length) * 100).toFixed(1) : "0"}%</div>
             <div className="text-xs text-slate-500 mt-1.5">{linhas.filter((r) => r.receber > 0.01).length} de {linhas.length} cambistas</div>
           </div>
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-card overflow-hidden">
+      <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -1691,7 +1679,7 @@ function ModalDetalheCambista({ cambista, lancamentos, pagamentos, onClose }) {
       <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-modal animate-scale-in" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 sticky top-0 bg-white/95 backdrop-blur z-10">
           <div className="flex items-center gap-4 min-w-0">
-            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 text-white font-bold text-xl flex items-center justify-center shrink-0 shadow-card">{(cambista.nome || "?").trim()[0]?.toUpperCase() || "?"}</div>
+            <div className="w-14 h-14 rounded-full bg-orange-600 text-white font-bold text-xl flex items-center justify-center shrink-0">{(cambista.nome || "?").trim()[0]?.toUpperCase() || "?"}</div>
             <div className="min-w-0">
               <div className="font-bold text-lg text-slate-900 truncate flex items-center gap-2">
                 {cambista.nome}
@@ -1897,12 +1885,9 @@ function GastosControl({ db, update, gran, ref_, range }) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-5">
-        <div className={cardBox}>
-          <div className="flex items-center justify-between mb-3">
-            <span className={eyebrow}>Total Gasto</span>
-            <span className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-amber-50 text-amber-600"><DollarSign size={18} /></span>
-          </div>
-          <div className="text-2xl md:text-[28px] font-bold text-slate-900 tabular-nums tracking-tight">{brl(dados_agregados.total)}</div>
+        <div className="rounded-lg border border-slate-200 border-l-4 border-l-amber-500 bg-white p-5">
+          <span className={eyebrow}>Total Gasto</span>
+          <div className="text-2xl md:text-[28px] font-bold text-slate-900 tabular-nums tracking-tight mt-2">{brl(dados_agregados.total)}</div>
           <div className="text-xs text-slate-500 mt-1.5">{custom ? `${fmtData(dtDe)} a ${fmtData(dtAte)}` : rotuloPeriodo(gran, ref_)}</div>
         </div>
 
@@ -1972,7 +1957,7 @@ function GastosControl({ db, update, gran, ref_, range }) {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-card overflow-hidden">
+      <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
         <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-200 flex-wrap">
           <Search size={15} className="text-slate-400" />
           <input value={busca} onChange={(e) => { setBusca(e.target.value); setPaginaGastos(1); }} placeholder="Buscar por categoria, responsável ou descrição..." className="text-sm flex-1 outline-none bg-transparent placeholder:text-slate-400" />
@@ -2699,7 +2684,7 @@ function RelatorioAuditoriaGastos({ db }) {
 
           {alertas.filter((a) => a.severidade === "alto").length > 0 && (
             <div className="bg-rose-50 border border-rose-200 rounded p-3">
-              <h3 className="text-sm font-bold text-rose-800 mb-1">⚠️ Alertas Críticos</h3>
+              <h3 className="text-sm font-bold text-rose-800 mb-1 flex items-center gap-1.5"><AlertTriangle size={14} /> Alertas Críticos</h3>
               <ul className="text-xs text-rose-700 space-y-0.5">
                 {alertas.filter((a) => a.severidade === "alto").map((alerta, i) => (
                   <li key={i}>• {alerta.titulo}: {alerta.descricao}</li>
@@ -2776,7 +2761,7 @@ function RelatorioAuditoriaGastos({ db }) {
                 <div key={ef.mes} className={`p-2 border rounded ${ef.alerta ? "bg-rose-50 border-rose-200" : "bg-slate-50"}`}>
                   <div className="font-bold">{ef.mes}</div>
                   <div className="text-slate-600">Gastos: {brl(ef.gastos)} | Líquido: {brl(ef.liquido)} | % do Lucro: {ef.percentualGasto.toFixed(1)}%</div>
-                  {ef.alerta && <div className="text-rose-600 font-bold">⚠️ Gastos acima de 80% do lucro</div>}
+                  {ef.alerta && <div className="text-rose-600 font-bold flex items-center gap-1.5"><AlertTriangle size={12} /> Gastos acima de 80% do lucro</div>}
                 </div>
               ))}
             </div>

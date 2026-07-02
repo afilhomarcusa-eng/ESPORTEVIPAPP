@@ -21,7 +21,8 @@
       "Bash(awk 'NR>=2426 && /\\\\*\\\\// {print NR\": \"$0; exit}' src/App.jsx)",
       "Bash(awk 'NR>2426 && index\\($0,\"*/\"\\) {print NR\": \"$0; exit}' src/App.jsx)",
       "Bash(sleep 5 && tail -8 /tmp/vite.log)",
-      "Bash(curl -s http://localhost:5179/)"
+      "Bash(curl -s http://localhost:5179/)",
+      "Bash(iconv -f utf-8 -t utf-8 src/App.jsx)"
     ]
   }
 }
