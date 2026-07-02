@@ -6,7 +6,16 @@
       "Bash(git commit *)",
       "Bash(git push *)",
       "PowerShell($file = Get-Content \"c:\\\\Users\\\\osnav\\\\OneDrive\\\\Desktop\\\\esportevip\\\\src\\\\App.jsx\" -Raw; $lines = $file -split \"`n\"; $count = $lines.Count; Write-Output \"Total de linhas: $count\"; $lines[-20..-1] | ForEach-Object { Write-Output $_ })",
-      "PowerShell($file = Get-Content \"c:\\\\Users\\\\osnav\\\\OneDrive\\\\Desktop\\\\esportevip\\\\src\\\\App.jsx\" -Raw; $lines = $file -split \"`n\"; $lines[-5..-1] | ForEach-Object { Write-Output $_ })"
+      "PowerShell($file = Get-Content \"c:\\\\Users\\\\osnav\\\\OneDrive\\\\Desktop\\\\esportevip\\\\src\\\\App.jsx\" -Raw; $lines = $file -split \"`n\"; $lines[-5..-1] | ForEach-Object { Write-Output $_ })",
+      "Bash(git remote *)",
+      "Bash(npm run *)",
+      "Bash(git commit -m ' *)",
+      "Bash(sleep 5 && tail -20 /tmp/vite.log 2>/dev/null || echo \"Log not found yet\")",
+      "Read(//tmp/**)",
+      "Bash(curl -s http://localhost:5174/)",
+      "Bash(pkill -f \"npm run dev\")",
+      "Bash(sleep 5 && tail -10 /tmp/vite.log 2>/dev/null || echo \"Aguardando...\")",
+      "Bash(sleep 5 && tail -5 /tmp/vite.log 2>/dev/null || echo \"Iniciando...\")"
     ]
   }
 }
