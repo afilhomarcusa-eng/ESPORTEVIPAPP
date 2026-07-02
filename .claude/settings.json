@@ -22,7 +22,9 @@
       "Bash(awk 'NR>2426 && index\\($0,\"*/\"\\) {print NR\": \"$0; exit}' src/App.jsx)",
       "Bash(sleep 5 && tail -8 /tmp/vite.log)",
       "Bash(curl -s http://localhost:5179/)",
-      "Bash(iconv -f utf-8 -t utf-8 src/App.jsx)"
+      "Bash(iconv -f utf-8 -t utf-8 src/App.jsx)",
+      "Bash(awk 'NR==2859,NR==3200 && /^function /{print NR\": \"$0}' src/App.jsx)",
+      "Bash(awk '/^function RelatorioAuditoriaGastos/{p=1} p{print NR\": \"$0} p && /^}/{c++; if\\(c==1\\) exit}' src/App.jsx)"
     ]
   }
 }

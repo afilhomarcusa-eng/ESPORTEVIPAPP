@@ -744,6 +744,7 @@ export default function App() {
   const [gran, setGran] = useState("mes");
   const [ref, setRef] = useState(new Date());
   const [relatorioPre, setRelatorioPre] = useState(null);
+  const [abaRelatorios, setAbaRelatorios] = useState("semanal");
   const [salvando, setSalvando] = useState(false);
   const [showInativeModal, setShowInativeModal] = useState(false);
   const [inativos, setInativos] = useState([]);
@@ -783,6 +784,7 @@ export default function App() {
   const gerarRelatorioSemanal = (cambistaId) => {
     setGran("semana");
     setRelatorioPre(cambistaId);
+    setAbaRelatorios("semanal");
     setAba("relatorios");
   };
 
@@ -817,9 +819,9 @@ export default function App() {
               const Ic = n.icon; const on = aba === n.id;
               return (
                 <button key={n.id} onClick={() => irAba(n.id)}
-                  className={`group w-full flex items-center gap-3 pl-3 pr-3 py-2.5 rounded-lg text-sm transition-all duration-150 relative ${on ? "bg-orange-500/10 text-orange-300 font-medium" : "text-slate-400 hover:bg-slate-800/70 hover:text-slate-200"}`}>
+                  className={`group w-full flex items-center gap-3 pl-3 pr-3 py-2.5 rounded-lg text-sm transition-all duration-150 relative ${on ? "bg-orange-500/20 text-orange-300 font-medium" : "text-slate-400 hover:bg-slate-800/70 hover:text-slate-200"}`}>
                   {on && <span className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full bg-orange-400" />}
-                  <Ic size={18} className={`shrink-0 transition-transform duration-150 ${on ? "" : "group-hover:scale-105"}`} /> {n.nome}
+                  <Ic size={18} className={`shrink-0 transition-transform duration-150 ${on ? "text-orange-400" : "group-hover:scale-105"}`} /> {n.nome}
                 </button>
               );
             })}
@@ -850,12 +852,14 @@ export default function App() {
               {db.exemplo && <div className="text-[11px] text-amber-600 hidden sm:block mt-0.5">Você está vendo dados de exemplo. Edite ou limpe quando quiser.</div>}
             </div>
             {inativos.length > 0 && (
-              <button onClick={() => setShowInativeModal(true)} className="inline-flex items-center gap-2 text-xs bg-amber-50 border border-amber-200 text-amber-700 rounded-lg px-2.5 py-1.5 hover:bg-amber-100 transition">
+              <button onClick={() => setShowInativeModal(true)} className="inline-flex items-center gap-2 text-xs bg-amber-100 border border-amber-300 text-amber-800 rounded-lg px-2.5 py-1.5 hover:bg-amber-200 transition">
                 <Clock size={14} /> <span className="tabular-nums">{inativos.length}</span> <span className="hidden sm:inline">cambista(s) inativo(s)</span>
               </button>
             )}
-            <PeriodPicker gran={gran} setGran={setGran} ref_={ref} setRef={setRef}
-              opts={aba === "relatorios" ? [["semana","Semanal"],["tudo","Tudo"]] : undefined} />
+            {(aba !== "relatorios" || abaRelatorios === "semanal") && (
+              <PeriodPicker gran={gran} setGran={setGran} ref_={ref} setRef={setRef}
+                opts={aba === "relatorios" ? [["semana","Semanal"],["tudo","Tudo"]] : undefined} />
+            )}
           </header>
 
           <main className="p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8 max-w-[1400px] mx-auto min-w-0">
@@ -870,7 +874,8 @@ export default function App() {
               <GastosControl db={db} update={update} gran={gran} ref_={ref} range={[s, e]} />
             )}
             {aba === "relatorios" && (
-              <Relatorios db={db} cambById={cambById} lancs={lancsPeriodo} gran={gran} ref_={ref} preSelecionar={relatorioPre} onConsumir={() => setRelatorioPre(null)} />
+              <Relatorios db={db} cambById={cambById} lancs={lancsPeriodo} gran={gran} ref_={ref} preSelecionar={relatorioPre} onConsumir={() => setRelatorioPre(null)}
+                abaRelatorios={abaRelatorios} setAbaRelatorios={setAbaRelatorios} />
             )}
           </main>
         </div>
@@ -910,9 +915,9 @@ function ModalInactivos({ inativos, onClose }) {
         <div className="p-6 space-y-3 max-h-96 overflow-y-auto">
           <p className="text-sm text-slate-600 mb-4">Os seguintes cambistas não possuem movimento há 7 dias ou mais:</p>
           {inativos.map(({ cambista, dias }) => (
-            <div key={cambista.id} className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+            <div key={cambista.id} className="bg-amber-100 border border-amber-300 rounded-lg p-3">
               <div className="font-medium text-slate-800">{cambista.nome}</div>
-              <div className="text-sm text-amber-700 mt-1">
+              <div className="text-sm text-amber-800 mt-1">
                 {dias === Infinity ? "Nunca lançou movimento" : `${dias} dias sem atividade`}
               </div>
               <div className="text-xs text-slate-500 mt-1">{cambista.contato}</div>
@@ -969,7 +974,7 @@ function Kpi({ titulo, valor, delta, cor = "orange", inverso = false, corValor =
       <span className={eyebrow}>{titulo}</span>
       <div title={valor} className={`mt-2 text-lg sm:text-xl lg:text-2xl font-bold tabular-nums tracking-tight truncate ${corValor}`}>{valor}</div>
       {delta != null && isFinite(delta) && (
-        <div className={`mt-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${bom ? "bg-emerald-100 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
+        <div className={`mt-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${bom ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}`}>
           {bom ? <TrendingUp size={12} /> : <TrendingDown size={12} />} {pct(Math.abs(delta))}
         </div>
       )}
@@ -990,10 +995,10 @@ function delta(a, b) { if (!b) return b === 0 && a === 0 ? 0 : null; return (a -
 function Badge({ tone = "neutral", icon: Ic, children, className = "" }) {
   const tones = {
     success: "bg-emerald-100 text-emerald-800",
-    danger: "bg-rose-50 text-rose-700",
+    danger: "bg-rose-100 text-rose-700",
     neutral: "bg-slate-100 text-slate-600",
-    warning: "bg-amber-50 text-amber-700",
-    info: "bg-indigo-50 text-indigo-600",
+    warning: "bg-amber-100 text-amber-800",
+    info: "bg-indigo-100 text-indigo-700",
   };
   return (
     <span className={`inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2.5 py-1 whitespace-nowrap ${tones[tone] || tones.neutral} ${className}`}>
@@ -1113,11 +1118,29 @@ function Toaster() {
 /* ======================== DASHBOARD ======================== */
 function Dashboard({ db, update, cambById, lancs, totais, totaisPrev, gran, ref_, range }) {
   const [editMeta, setEditMeta] = useState(false);
+  const [dtDe, setDtDe] = useState("");
+  const [dtAte, setDtAte] = useState("");
+  const custom = Boolean(dtDe && dtAte);
+
+  const [s, e] = custom ? [parse(dtDe), parse(dtAte)] : range;
+  const lancsEf = useMemo(() => custom ? (db.lancamentos || []).filter((l) => dentro(l, s, e)) : lancs, [custom, db.lancamentos, lancs, s, e]);
+
+  const [sPrevEf, ePrevEf] = useMemo(() => {
+    if (!custom) return periodRange(gran, shiftRef(gran, ref_, -1));
+    const diasPeriodo = Math.round((e - s) / 86400000) + 1;
+    const ePrevCustom = new Date(s); ePrevCustom.setDate(ePrevCustom.getDate() - 1);
+    const sPrevCustom = new Date(ePrevCustom); sPrevCustom.setDate(sPrevCustom.getDate() - diasPeriodo + 1);
+    return [sPrevCustom, ePrevCustom];
+  }, [custom, s, e, gran, ref_]);
+  const lancsPrevEf = useMemo(() => (db.lancamentos || []).filter((l) => dentro(l, sPrevEf, ePrevEf)), [db.lancamentos, sPrevEf, ePrevEf]);
+
+  const totaisEf = useMemo(() => custom ? agrega(lancsEf, cambById) : totais, [custom, lancsEf, cambById, totais]);
+  const totaisPrevEf = useMemo(() => custom ? agrega(lancsPrevEf, cambById) : totaisPrev, [custom, lancsPrevEf, cambById, totaisPrev]);
 
   const serie = useMemo(() => {
     const map = new Map();
     const porMes = gran === "ano" || gran === "tudo";
-    for (const l of lancs) {
+    for (const l of lancsEf) {
       const d = parse(l.data);
       const chave = porMes ? `${d.getFullYear()}-${pad(d.getMonth()+1)}` : iso(d);
       const rot = porMes ? MESES[d.getMonth()] : `${pad(d.getDate())}/${pad(d.getMonth()+1)}`;
@@ -1127,7 +1150,7 @@ function Dashboard({ db, update, cambById, lancs, totais, totaisPrev, gran, ref_
       map.set(chave, cur);
     }
     return [...map.values()].sort((a, b) => a.chave.localeCompare(b.chave));
-  }, [lancs, gran, cambById]);
+  }, [lancsEf, gran, cambById]);
 
   const crescimento = useMemo(() => {
     const g = gran === "tudo" ? "mes" : gran;
@@ -1146,35 +1169,44 @@ function Dashboard({ db, update, cambById, lancs, totais, totaisPrev, gran, ref_
     for (const c of db.cambistas) {
       if (c.ativo) m[c.id] = { id: c.id, nome: c.nome, bruto: 0, comissao: 0, receber: 0 };
     }
-    for (const l of lancs) {
+    for (const l of lancsEf) {
       const c = calcLanc(l, cambById[l.cambistaId]);
       if (!m[l.cambistaId]) m[l.cambistaId] = { id: l.cambistaId, nome: cambById[l.cambistaId]?.nome || "Sem nome", bruto: 0, comissao: 0, receber: 0 };
       m[l.cambistaId].bruto += l.positivo; m[l.cambistaId].comissao += c.comissao; m[l.cambistaId].receber += c.receber;
     }
     return Object.values(m).sort((a, b) => b.receber - a.receber);
-  }, [lancs, cambById, db.cambistas]);
+  }, [lancsEf, cambById, db.cambistas]);
 
   const gastosPeriodo = useMemo(() => {
-    const [gs, ge] = range;
-    return (db.gastos || []).filter((g) => dentro({ data: g.data }, gs, ge)).reduce((a, g) => a + g.valor, 0);
-  }, [db.gastos, range]);
+    return (db.gastos || []).filter((g) => dentro({ data: g.data }, s, e)).reduce((a, g) => a + g.valor, 0);
+  }, [db.gastos, s, e]);
   const gastosPrev = useMemo(() => {
-    const [ps, pe] = periodRange(gran, shiftRef(gran, ref_, -1));
-    return (db.gastos || []).filter((g) => dentro({ data: g.data }, ps, pe)).reduce((a, g) => a + g.valor, 0);
-  }, [db.gastos, gran, ref_]);
-  const liquidoCasa = totais.receber - gastosPeriodo;
-  const liquidoCasaPrev = totaisPrev.receber - gastosPrev;
+    return (db.gastos || []).filter((g) => dentro({ data: g.data }, sPrevEf, ePrevEf)).reduce((a, g) => a + g.valor, 0);
+  }, [db.gastos, sPrevEf, ePrevEf]);
+  const liquidoCasa = totaisEf.receber - gastosPeriodo;
+  const liquidoCasaPrev = totaisPrevEf.receber - gastosPrev;
 
   const cambistasAtivos = db.cambistas.filter((c) => c.ativo).length;
   const emPrejuizo = porCambista.filter((c) => c.receber < 0);
   const metaPeriodo = metaDoPeriodo(db.metaMensal, gran);
-  const progresso = metaPeriodo ? totais.receber / metaPeriodo : null;
+  const progresso = metaPeriodo ? totaisEf.receber / metaPeriodo : null;
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="text-sm text-slate-500">Período: <span className="font-medium text-slate-700">{custom ? `${fmtData(dtDe)} a ${fmtData(dtAte)}` : rotuloPeriodo(gran, ref_)}</span></div>
+        <div className={`flex items-center gap-1.5 text-xs border rounded-lg px-2.5 py-1.5 transition-colors duration-150 ${custom ? "border-orange-300 bg-orange-50" : "border-slate-200 bg-white"}`}>
+          <span className="text-slate-500">De</span>
+          <input type="date" value={dtDe} onChange={(ev) => setDtDe(ev.target.value)} className="outline-none bg-transparent text-slate-700" />
+          <span className="text-slate-500">Até</span>
+          <input type="date" value={dtAte} onChange={(ev) => setDtAte(ev.target.value)} className="outline-none bg-transparent text-slate-700" />
+        </div>
+        {custom && <button onClick={() => { setDtDe(""); setDtAte(""); }} className="text-xs text-slate-400 hover:text-rose-500 transition-colors">limpar</button>}
+      </div>
+
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 md:gap-5">
-        <Kpi titulo="Resultado Bruto" valor={money(totais.bruto)} delta={delta(totais.bruto, totaisPrev.bruto)} icon={Coins} cor="slate" corValor={totais.bruto >= 0 ? "text-emerald-600" : "text-rose-600"} />
-        <Kpi titulo="Comissões" valor={money(totais.comissao)} delta={delta(totais.comissao, totaisPrev.comissao)} icon={Percent} cor="amber" inverso corValor={totais.comissao >= 0 ? "text-emerald-600" : "text-rose-600"} />
+        <Kpi titulo="Resultado Bruto" valor={money(totaisEf.bruto)} delta={delta(totaisEf.bruto, totaisPrevEf.bruto)} icon={Coins} cor="slate" corValor={totaisEf.bruto >= 0 ? "text-emerald-600" : "text-rose-600"} />
+        <Kpi titulo="Comissões" valor={money(totaisEf.comissao)} delta={delta(totaisEf.comissao, totaisPrevEf.comissao)} icon={Percent} cor="amber" inverso corValor={totaisEf.comissao >= 0 ? "text-emerald-600" : "text-rose-600"} />
         <Kpi titulo="Gastos" valor={money(gastosPeriodo)} delta={delta(gastosPeriodo, gastosPrev)} icon={DollarSign} cor="amber" inverso corValor={gastosPeriodo >= 0 ? "text-emerald-600" : "text-rose-600"} />
         <Kpi titulo="Líquido Casa" valor={money(liquidoCasa)} delta={delta(liquidoCasa, liquidoCasaPrev)} icon={Wallet} cor={liquidoCasa >= 0 ? "emerald" : "rose"} corValor={liquidoCasa >= 0 ? "text-emerald-600" : "text-rose-600"} />
         <Kpi titulo="Cambistas Ativos" valor={`${cambistasAtivos}`} icon={Users} cor="indigo" />
@@ -1187,7 +1219,7 @@ function Dashboard({ db, update, cambById, lancs, totais, totaisPrev, gran, ref_
             <button onClick={() => setEditMeta(true)} className="text-xs text-slate-500 hover:text-orange-600 font-medium transition-colors">editar meta</button>
           </div>
           <div className="flex items-end justify-between mb-2">
-            <span className="text-2xl md:text-[28px] font-bold text-slate-900 tabular-nums tracking-tight">{brl(totais.receber)}</span>
+            <span className="text-2xl md:text-[28px] font-bold text-slate-900 tabular-nums tracking-tight">{brl(totaisEf.receber)}</span>
             <span className="text-sm text-slate-500">meta {brl(metaPeriodo)}</span>
           </div>
           <div className="h-2.5 rounded-full bg-slate-100 overflow-hidden">
@@ -1283,9 +1315,9 @@ function Dashboard({ db, update, cambById, lancs, totais, totaisPrev, gran, ref_
       </div>
 
       {emPrejuizo.length > 0 && (
-        <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 md:p-5 min-w-0">
-          <div className="flex items-center gap-2 text-rose-700 font-semibold text-sm">
-            <span className="w-7 h-7 rounded-lg bg-rose-100 flex items-center justify-center shrink-0"><AlertTriangle size={14} /></span>
+        <div className="bg-rose-100 border border-rose-300 rounded-xl p-4 md:p-5 min-w-0">
+          <div className="flex items-center gap-2 text-rose-800 font-semibold text-sm">
+            <span className="w-7 h-7 rounded-lg bg-rose-200 flex items-center justify-center shrink-0"><AlertTriangle size={14} /></span>
             Cambistas em Prejuízo neste Período
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -2381,7 +2413,11 @@ function AuditoriaCambistas({ db }) {
   }
 
   const cambistasAtivos = db.cambistas.filter((c) => c.ativo);
-  const totalSemanas = new Set((db.lancamentos || []).map((l) => {
+  const filtroAtivo = Boolean(dtDe && dtAte);
+  const lancamentosPreview = filtroAtivo ? (db.lancamentos || []).filter((l) => dentro(l, parse(dtDe), parse(dtAte))) : (db.lancamentos || []);
+  const pagamentosPreview = filtroAtivo ? (db.pagamentos || []).filter((p) => dentro(p, parse(dtDe), parse(dtAte))) : (db.pagamentos || []);
+
+  const totalSemanas = new Set(lancamentosPreview.map((l) => {
     const d = parse(l.data);
     return `${d.getFullYear()}-W${Math.ceil((d.getDate() - d.getDay() + 10) / 7)}`;
   })).size;
@@ -2389,7 +2425,7 @@ function AuditoriaCambistas({ db }) {
   const alertasPreview = (() => {
     let count = 0;
     for (const c of cambistasAtivos) {
-      const semanas = semanasHistorico(c, db.lancamentos || [], db.pagamentos || []);
+      const semanas = semanasHistorico(c, lancamentosPreview, pagamentosPreview);
       const alertas = analiseAnomalias(semanas, c);
       count += alertas.filter((a) => a.tipo !== "aviso").length;
     }
@@ -2437,9 +2473,9 @@ function AuditoriaCambistas({ db }) {
             <div className={eyebrow}>Semanas</div>
             <div className="text-2xl font-bold text-slate-900 tabular-nums mt-1">{totalSemanas}</div>
           </div>
-          <div className="bg-rose-50 rounded-lg p-3">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-rose-600">Alertas</div>
-            <div className="text-2xl font-bold text-rose-700 tabular-nums mt-1">{alertasPreview}</div>
+          <div className="bg-rose-100 rounded-lg p-3">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-rose-700">Alertas</div>
+            <div className="text-2xl font-bold text-rose-800 tabular-nums mt-1">{alertasPreview}</div>
           </div>
         </div>
 
@@ -2450,7 +2486,7 @@ function AuditoriaCambistas({ db }) {
         </button>
       </div>
 
-      <RelatorioAuditoria db={db} />
+      <RelatorioAuditoria db={db} dtDe={dtDe} dtAte={dtAte} />
     </div>
   );
 }
@@ -2466,7 +2502,9 @@ function AuditoriaGastos({ db }) {
     return <EmptyState icon={TrendingUp} titulo="Nenhum gasto registrado" descricao="Registre gastos para gerar o relatório de auditoria." />;
   }
 
-  const { meses, alertas } = analisarGastos(db.gastos);
+  const filtroAtivo = Boolean(dtDe && dtAte);
+  const gastosPreview = filtroAtivo ? (db.gastos || []).filter((g) => dentro({ data: g.data }, parse(dtDe), parse(dtAte))) : (db.gastos || []);
+  const { meses, alertas } = analisarGastos(gastosPreview);
   const totalGasto = meses.reduce((a, m) => a + m.total, 0);
   const alertasCount = alertas.filter((a) => a.tipo !== "aviso").length;
 
@@ -2511,9 +2549,9 @@ function AuditoriaGastos({ db }) {
             <div className={eyebrow}>Meses</div>
             <div className="text-2xl font-bold text-slate-900 tabular-nums mt-1">{meses.length}</div>
           </div>
-          <div className="bg-rose-50 rounded-lg p-3">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-rose-600">Alertas</div>
-            <div className="text-2xl font-bold text-rose-700 tabular-nums mt-1">{alertasCount}</div>
+          <div className="bg-rose-100 rounded-lg p-3">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-rose-700">Alertas</div>
+            <div className="text-2xl font-bold text-rose-800 tabular-nums mt-1">{alertasCount}</div>
           </div>
         </div>
 
@@ -2524,15 +2562,13 @@ function AuditoriaGastos({ db }) {
         </button>
       </div>
 
-      <RelatorioAuditoriaGastos db={db} />
+      <RelatorioAuditoriaGastos db={db} dtDe={dtDe} dtAte={dtAte} />
     </div>
   );
 }
 
 /* ======================== CONTAINER: RELATÓRIOS COM NAVEGAÇÃO ======================== */
-function RelatoriosContainer({ db, cambById, lancs, gran, ref_, range, preSelecionar, onConsumir }) {
-  const [abaRelatorios, setAbaRelatorios] = useState("semanal");
-
+function RelatoriosContainer({ db, cambById, lancs, gran, ref_, range, preSelecionar, onConsumir, abaRelatorios, setAbaRelatorios }) {
   const abas = [
     { id: "semanal", label: "Fechamento Semanal", icon: Calendar },
     { id: "auditoriaCambistas", label: "Auditoria de Cambistas", icon: BarChart3 },
@@ -2566,14 +2602,15 @@ function RelatoriosContainer({ db, cambById, lancs, gran, ref_, range, preSeleci
 }
 
 /* ======================== RELATÓRIOS (FUNÇÃO LEGADA - WRAPPER) ======================== */
-function Relatorios({ db, cambById, lancs, gran, ref_, preSelecionar, onConsumir }) {
+function Relatorios({ db, cambById, lancs, gran, ref_, preSelecionar, onConsumir, abaRelatorios, setAbaRelatorios }) {
   // Função mantida como wrapper que delega para RelatoriosContainer
   const [s, e] = periodRange(gran, ref_);
-  return <RelatoriosContainer db={db} cambById={cambById} lancs={lancs} gran={gran} ref_={ref_} range={[s, e]} preSelecionar={preSelecionar} onConsumir={onConsumir} />;
+  return <RelatoriosContainer db={db} cambById={cambById} lancs={lancs} gran={gran} ref_={ref_} range={[s, e]} preSelecionar={preSelecionar} onConsumir={onConsumir}
+    abaRelatorios={abaRelatorios} setAbaRelatorios={setAbaRelatorios} />;
 }
 
 /* ======================== RELATÓRIO DE AUDITORIA DE GASTOS ======================== */
-function RelatorioAuditoriaGastos({ db }) {
+function RelatorioAuditoriaGastos({ db, dtDe, dtAte }) {
   const auditoriaGastosPDFRef = useRef(null);
   const [gerando, setGerando] = useState(false);
 
@@ -2586,13 +2623,26 @@ function RelatorioAuditoriaGastos({ db }) {
 
   if (!db.gastos || db.gastos.length === 0) {
     return (
-      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-center text-amber-700 text-sm">
+      <div className="bg-amber-100 border border-amber-300 rounded-lg p-4 text-center text-amber-800 text-sm">
         Nenhum gasto registrado. Registre gastos para gerar o relatório de auditoria.
       </div>
     );
   }
 
-  const { meses, alertas } = analisarGastos(db.gastos);
+  const filtroAtivo = Boolean(dtDe && dtAte);
+  const filtroS = filtroAtivo ? parse(dtDe) : null;
+  const filtroE = filtroAtivo ? parse(dtAte) : null;
+  const gastosFiltrados = filtroAtivo ? (db.gastos || []).filter((g) => dentro({ data: g.data }, filtroS, filtroE)) : (db.gastos || []);
+
+  if (filtroAtivo && gastosFiltrados.length === 0) {
+    return (
+      <div className="bg-amber-100 border border-amber-300 rounded-lg p-4 text-center text-amber-800 text-sm">
+        Nenhum gasto encontrado no período selecionado ({fmtData(dtDe)} a {fmtData(dtAte)}).
+      </div>
+    );
+  }
+
+  const { meses, alertas } = analisarGastos(gastosFiltrados);
   const eficiencias = calcularEficiencia(meses, db.cambistas || [], db.lancamentos || [], db.pagamentos || []);
   const projecao = calcularProjecao(meses);
 
@@ -2628,7 +2678,7 @@ function RelatorioAuditoriaGastos({ db }) {
   }
 
   const categoriasRanking = CATEGORIAS_GASTOS.map((cat) => {
-    const gastosCat = db.gastos.filter((g) => g.categoria === cat);
+    const gastosCat = gastosFiltrados.filter((g) => g.categoria === cat);
     const totalCat = gastosCat.reduce((a, g) => a + g.valor, 0);
     const naoZeroMeses = meses.filter((m) => gastosMesCategoria[cat].find((x) => x.mes === m.mes && x.valor > 0)).length;
     return { categoria: cat, total: totalCat, pct: (totalCat / totalGasto) * 100, count: gastosCat.length, naoZeroMeses };
@@ -2637,7 +2687,7 @@ function RelatorioAuditoriaGastos({ db }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="text-sm text-slate-500">Análise Completa de Gastos - Histórico Inteiro</div>
+        <div className="text-sm text-slate-500">Análise Completa de Gastos {filtroAtivo ? `— ${fmtData(dtDe)} a ${fmtData(dtAte)}` : "— Histórico Inteiro"}</div>
         <div className="flex gap-2 flex-wrap">
           <button onClick={gerarPdf} disabled={gerando} className="inline-flex items-center gap-2 text-xs border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 rounded-lg px-3 py-1.5 disabled:opacity-50 transition-colors duration-150">
             {gerando && <Loader2 size={13} className="animate-spin" />} {gerando ? "Gerando..." : "Baixar como Imagem"}
@@ -2727,9 +2777,9 @@ function RelatorioAuditoriaGastos({ db }) {
                 <td className="border p-1">Total</td>
                 <td className="border p-1 text-right tabular-nums">{brl(totalGasto)}</td>
                 <td className="border p-1"></td>
-                <td className="border p-1 text-right">{db.gastos.length}</td>
+                <td className="border p-1 text-right">{gastosFiltrados.length}</td>
                 {CATEGORIAS_GASTOS.slice(0, 3).map((cat) => {
-                  const valor = db.gastos.filter((g) => g.categoria === cat).reduce((a, x) => a + x.valor, 0);
+                  const valor = gastosFiltrados.filter((g) => g.categoria === cat).reduce((a, x) => a + x.valor, 0);
                   return <td key={cat} className="border p-1 text-right tabular-nums">{valor > 0 ? brl(valor) : "-"}</td>;
                 })}
               </tr>
@@ -2856,7 +2906,7 @@ function RelatorioAuditoriaGastos({ db }) {
 }
 
 /* ======================== RELATÓRIO DE AUDITORIA ======================== */
-function RelatorioAuditoria({ db }) {
+function RelatorioAuditoria({ db, dtDe, dtAte }) {
   const auditoriaPDFRef = useRef(null);
   const [gerando, setGerando] = useState(false);
 
@@ -2869,11 +2919,17 @@ function RelatorioAuditoria({ db }) {
 
   if (!db.cambistas || db.cambistas.length === 0) {
     return (
-      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-center text-amber-700 text-sm">
+      <div className="bg-amber-100 border border-amber-300 rounded-lg p-4 text-center text-amber-800 text-sm">
         Nenhum cambista cadastrado. Crie cambistas para gerar o relatório de auditoria.
       </div>
     );
   }
+
+  const filtroAtivo = Boolean(dtDe && dtAte);
+  const filtroS = filtroAtivo ? parse(dtDe) : null;
+  const filtroE = filtroAtivo ? parse(dtAte) : null;
+  const lancamentosFiltrados = filtroAtivo ? (db.lancamentos || []).filter((l) => dentro(l, filtroS, filtroE)) : (db.lancamentos || []);
+  const pagamentosFiltrados = filtroAtivo ? (db.pagamentos || []).filter((p) => dentro(p, filtroS, filtroE)) : (db.pagamentos || []);
 
   const gerarPdf = async () => {
     if (!auditoriaPDFRef.current) return;
@@ -2902,7 +2958,7 @@ function RelatorioAuditoria({ db }) {
   let ultimaData = null;
 
   for (const cambista of db.cambistas.filter((c) => c.ativo)) {
-    const semanas = semanasHistorico(cambista, db.lancamentos || [], db.pagamentos || []);
+    const semanas = semanasHistorico(cambista, lancamentosFiltrados, pagamentosFiltrados);
     if (semanas.length === 0) continue;
 
     brutonsTotais[cambista.id] = semanas.reduce((a, s) => a + s.agreAgrega.bruto, 0);
@@ -2924,7 +2980,7 @@ function RelatorioAuditoria({ db }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="text-sm text-slate-500">Análise de Fraude e Desempenho - Histórico Completo</div>
+        <div className="text-sm text-slate-500">Análise de Fraude e Desempenho {filtroAtivo ? `— ${fmtData(dtDe)} a ${fmtData(dtAte)}` : "— Histórico Completo"}</div>
         <div className="flex gap-2 flex-wrap">
           <button onClick={gerarPdf} disabled={gerando} className="inline-flex items-center gap-2 text-xs border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 rounded-lg px-3 py-1.5 disabled:opacity-50 transition-colors duration-150">
             {gerando && <Loader2 size={13} className="animate-spin" />} {gerando ? "Gerando..." : "Baixar como Imagem"}
@@ -2969,14 +3025,14 @@ function RelatorioAuditoria({ db }) {
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
             <div className="bg-slate-100 p-2 rounded"><span className="text-slate-600">Cambistas Ativos:</span> <span className="font-bold">{db.cambistas.filter((c) => c.ativo).length}</span></div>
-            <div className="bg-slate-100 p-2 rounded"><span className="text-slate-600">Semanas Analisadas:</span> <span className="font-bold">{new Set(db.lancamentos.map((l) => `${parse(l.data).getFullYear()}-W${Math.ceil((parse(l.data).getDate() - parse(l.data).getDay() + 10) / 7)}`)).size}</span></div>
+            <div className="bg-slate-100 p-2 rounded"><span className="text-slate-600">Semanas Analisadas:</span> <span className="font-bold">{new Set(lancamentosFiltrados.map((l) => `${parse(l.data).getFullYear()}-W${Math.ceil((parse(l.data).getDate() - parse(l.data).getDay() + 10) / 7)}`)).size}</span></div>
             <div className="bg-rose-100 p-2 rounded"><span className="text-rose-600">Em Atraso:</span> <span className="font-bold">{cambistaEmAtraso}</span></div>
             <div className="bg-amber-100 p-2 rounded"><span className="text-amber-600">Risco Médio:</span> <span className="font-bold">Análise Concluída</span></div>
           </div>
         </div>
 
         {db.cambistas.filter((c) => c.ativo).map((cambista) => {
-          const semanas = semanasHistorico(cambista, db.lancamentos || [], db.pagamentos || []);
+          const semanas = semanasHistorico(cambista, lancamentosFiltrados, pagamentosFiltrados);
           if (semanas.length === 0) return null;
 
           const alertas = analiseAnomalias(semanas, cambista);
