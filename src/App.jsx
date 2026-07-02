@@ -1697,9 +1697,9 @@ function GastosControl({ db, update, gran, ref_, range }) {
 
   const adicionar = () => {
     const v = parseFloat(String(valor).replace(",", "."));
-    if (!categoria.trim()) return alert("Selecione uma categoria.");
-    if (!descricao.trim()) return alert("Informe a descrição.");
-    if (isNaN(v) || v <= 0) return alert("Informe um valor válido.");
+    if (!categoria.trim()) return toast("Selecione uma categoria.", "error");
+    if (!descricao.trim()) return toast("Informe a descrição.", "error");
+    if (isNaN(v) || v <= 0) return toast("Informe um valor válido.", "error");
 
     update((d) => {
       if (editId) {
@@ -1709,6 +1709,7 @@ function GastosControl({ db, update, gran, ref_, range }) {
         d.gastos.push({ id: uid(), categoria, descricao: descricao.trim(), valor: v, data });
       }
     });
+    toast(editId ? "Gasto atualizado." : "Gasto adicionado.", "success");
 
     setCategoria("Alimentação");
     setDescricao("");
@@ -1718,20 +1719,20 @@ function GastosControl({ db, update, gran, ref_, range }) {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <div className="flex items-center gap-3 flex-wrap">
         <div className="text-sm text-slate-500">Período: <span className="font-medium text-slate-700">{custom ? `${fmtData(dtDe)} a ${fmtData(dtAte)}` : rotuloPeriodo(gran, ref_)}</span></div>
-        <div className={`flex items-center gap-1.5 text-xs border rounded-lg px-2.5 py-1.5 ${custom ? "border-orange-300 bg-orange-50" : "border-slate-200 bg-white"}`}>
-          <span className="text-slate-400">De</span>
+        <div className={`flex items-center gap-1.5 text-xs border rounded-lg px-2.5 py-1.5 transition-colors duration-150 ${custom ? "border-orange-300 bg-orange-50" : "border-slate-200 bg-white"}`}>
+          <span className="text-slate-500">De</span>
           <input type="date" value={dtDe} onChange={(ev) => { setDtDe(ev.target.value); setPaginaGastos(1); }} className="outline-none bg-transparent text-slate-700" />
-          <span className="text-slate-400">Até</span>
+          <span className="text-slate-500">Até</span>
           <input type="date" value={dtAte} onChange={(ev) => { setDtAte(ev.target.value); setPaginaGastos(1); }} className="outline-none bg-transparent text-slate-700" />
         </div>
-        {custom && <button onClick={() => { setDtDe(""); setDtAte(""); }} className="text-xs text-slate-400 hover:text-rose-500">limpar</button>}
+        {custom && <button onClick={() => { setDtDe(""); setDtAte(""); }} className="text-xs text-slate-400 hover:text-rose-500 transition-colors">limpar</button>}
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 p-4">
-        <div className="text-sm font-semibold text-slate-700 mb-3">{editId ? "Editar Gasto" : "Novo Gasto"}</div>
+      <div className={cardBox}>
+        <div className={titSec}>{editId ? "Editar Gasto" : "Novo Gasto"}</div>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
           <div>
             <label className={lbl}>Categoria</label>
@@ -1751,20 +1752,23 @@ function GastosControl({ db, update, gran, ref_, range }) {
             <label className={lbl}>Data</label>
             <input type="date" value={data} onChange={(e) => setData(e.target.value)} className={inp} />
           </div>
-          <button onClick={adicionar} className="inline-flex items-center justify-center gap-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-lg px-3 py-2 h-10 w-full"><Check size={16} /> {editId ? "Salvar" : "Adicionar"}</button>
+          <button onClick={adicionar} className="inline-flex items-center justify-center gap-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-lg px-3 h-10 w-full transition-colors duration-150"><Check size={16} /> {editId ? "Salvar" : "Adicionar"}</button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-5">
         <div className={cardBox}>
-          <div className={titSec}>Total Gasto</div>
-          <div className="text-3xl font-bold text-slate-900 tabular-nums">{brl(dados_agregados.total)}</div>
-          <div className="text-xs text-slate-500 mt-2">Período: {custom ? `${fmtData(dtDe)} a ${fmtData(dtAte)}` : rotuloPeriodo(gran, ref_)}</div>
+          <div className="flex items-center justify-between mb-3">
+            <span className={eyebrow}>Total Gasto</span>
+            <span className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-amber-50 text-amber-600"><DollarSign size={18} /></span>
+          </div>
+          <div className="text-2xl md:text-[28px] font-bold text-slate-900 tabular-nums tracking-tight">{brl(dados_agregados.total)}</div>
+          <div className="text-xs text-slate-500 mt-1.5">{custom ? `${fmtData(dtDe)} a ${fmtData(dtAte)}` : rotuloPeriodo(gran, ref_)}</div>
         </div>
 
         <div className={`${cardBox} lg:col-span-2`}>
           <div className={titSec}>Gasto por Categoria</div>
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             {CATEGORIAS_GASTOS.map((cat, idx) => {
               const valor_cat = dados_agregados.por_categoria[cat] || 0;
               const pct_cat = dados_agregados.total > 0 ? (valor_cat / dados_agregados.total) * 100 : 0;
@@ -1775,7 +1779,7 @@ function GastosControl({ db, update, gran, ref_, range }) {
                     <span className="text-slate-900 font-bold tabular-nums">{brl(valor_cat)}</span>
                   </div>
                   <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
-                    <div className="h-full rounded-full" style={{ width: `${pct_cat}%`, backgroundColor: CORES_LARANJA[idx % CORES_LARANJA.length] }} />
+                    <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct_cat}%`, backgroundColor: CORES_LARANJA[idx % CORES_LARANJA.length] }} />
                   </div>
                 </div>
               );
@@ -1789,10 +1793,10 @@ function GastosControl({ db, update, gran, ref_, range }) {
         <div className="h-56 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={tendenciaGastos} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" vertical={false} />
-              <XAxis dataKey="rot" tick={{ fontSize: 10, fill: "#94a3b8" }} tickLine={false} axisLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} tickFormatter={fmtEixo} width={40} />
-              <Tooltip formatter={(v) => [brl(v), "Total"]} contentStyle={{ borderRadius: 10, border: "1px solid #e2e8f0", fontSize: 12 }} />
+              <CartesianGrid strokeDasharray="3 3" stroke={THEME_CHART.grid} vertical={false} />
+              <XAxis dataKey="rot" tick={{ ...CHART_AXIS_TICK, fontSize: 10 }} tickLine={false} axisLine={false} />
+              <YAxis tick={CHART_AXIS_TICK} tickLine={false} axisLine={false} tickFormatter={fmtEixo} width={40} />
+              <Tooltip formatter={(v) => [brl(v), "Total"]} contentStyle={CHART_TOOLTIP_STYLE} />
               <ReferenceLine y={0} stroke="#cbd5e1" />
               <Line type="monotone" dataKey="total" stroke="#475569" strokeWidth={2.5} dot={{ r: 4, fill: "#475569" }} activeDot={{ r: 6 }} />
             </LineChart>
@@ -1800,39 +1804,45 @@ function GastosControl({ db, update, gran, ref_, range }) {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-card overflow-hidden">
         <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-200 flex-wrap">
           <Search size={15} className="text-slate-400" />
-          <input value={busca} onChange={(e) => { setBusca(e.target.value); setPaginaGastos(1); }} placeholder="Buscar por categoria ou descrição..." className="text-sm flex-1 outline-none bg-transparent" />
-          <span className="text-xs text-slate-400 tabular-nums">{lista_filtrada.length} gasto(s)</span>
+          <input value={busca} onChange={(e) => { setBusca(e.target.value); setPaginaGastos(1); }} placeholder="Buscar por categoria ou descrição..." className="text-sm flex-1 outline-none bg-transparent placeholder:text-slate-400" />
+          <span className="text-xs text-slate-500 tabular-nums">{lista_filtrada.length} gasto(s)</span>
         </div>
         <div className="max-h-[520px] overflow-auto">
           <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-slate-50">
-              <tr className="text-left text-xs text-slate-500 border-b border-slate-200">
-                <th className="px-4 py-2.5 font-medium">Data</th>
-                <th className="px-4 py-2.5 font-medium">Categoria</th>
-                <th className="px-4 py-2.5 font-medium">Descrição</th>
-                <th className="px-4 py-2.5 font-medium text-right">Valor</th>
+            <thead className="sticky top-0 bg-slate-50/80 backdrop-blur">
+              <tr className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 border-b border-slate-200">
+                <th className="px-4 py-2.5">Data</th>
+                <th className="px-4 py-2.5">Categoria</th>
+                <th className="px-4 py-2.5">Descrição</th>
+                <th className="px-4 py-2.5 text-right">Valor</th>
                 <th className="px-4 py-2.5"></th>
               </tr>
             </thead>
             <tbody>
               {lista_paginada.map((g) => (
-                <tr key={g.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
+                <tr key={g.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors duration-150">
                   <td className="px-4 py-2.5 tabular-nums text-slate-600">{fmtData(g.data)}</td>
                   <td className="px-4 py-2.5 text-slate-700 font-medium">{g.categoria}</td>
                   <td className="px-4 py-2.5 text-slate-600">{g.descricao}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-slate-900">{brl(g.valor)}</td>
                   <td className="px-4 py-2.5">
                     <div className="flex gap-1 justify-end">
-                      <button onClick={() => { setEditId(g.id); setCategoria(g.categoria); setDescricao(g.descricao); setValor(String(g.valor)); setData(g.data); window.scrollTo({ top: 0, behavior: "smooth" }); }} className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500"><Pencil size={14} /></button>
-                      <button onClick={() => update((d) => { d.gastos = d.gastos.filter((x) => x.id !== g.id); })} className="p-1.5 rounded-md hover:bg-rose-50 text-rose-500"><Trash2 size={14} /></button>
+                      <button onClick={() => { setEditId(g.id); setCategoria(g.categoria); setDescricao(g.descricao); setValor(String(g.valor)); setData(g.data); window.scrollTo({ top: 0, behavior: "smooth" }); }} aria-label={`Editar gasto ${g.descricao}`} title="Editar" className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 transition-colors duration-150"><Pencil size={14} /></button>
+                      <button onClick={() => { update((d) => { d.gastos = d.gastos.filter((x) => x.id !== g.id); }); toast("Gasto removido.", "success"); }} aria-label={`Excluir gasto ${g.descricao}`} title="Excluir" className="p-1.5 rounded-md hover:bg-rose-50 text-rose-500 transition-colors duration-150"><Trash2 size={14} /></button>
                     </div>
                   </td>
                 </tr>
               ))}
-              {lista_filtrada.length === 0 && <tr><td colSpan={5} className="px-4 py-10 text-center text-slate-400 text-sm">Nenhum gasto registrado neste período.</td></tr>}
+              {lista_filtrada.length === 0 && (
+                <tr>
+                  <td colSpan={5}>
+                    <EmptyState icon={DollarSign} titulo="Nenhum gasto registrado" descricao="Nenhum gasto foi encontrado para este período ou filtro." />
+                  </td>
+                </tr>
+              )}
             </tbody>
             {lista_filtrada.length > 0 && (
               <tfoot className="sticky bottom-0 bg-slate-50 border-t-2 border-slate-200">
@@ -1849,8 +1859,8 @@ function GastosControl({ db, update, gran, ref_, range }) {
           <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 text-xs text-slate-600">
             <span>Página {paginaGastos} de {totalPaginas}</span>
             <div className="flex gap-1">
-              <button onClick={() => setPaginaGastos(Math.max(1, paginaGastos - 1))} disabled={paginaGastos === 1} className="p-1.5 rounded border border-slate-200 hover:bg-slate-50 disabled:opacity-50"><ChevronLeft size={16} /></button>
-              <button onClick={() => setPaginaGastos(Math.min(totalPaginas, paginaGastos + 1))} disabled={paginaGastos === totalPaginas} className="p-1.5 rounded border border-slate-200 hover:bg-slate-50 disabled:opacity-50"><ChevronRight size={16} /></button>
+              <button onClick={() => setPaginaGastos(Math.max(1, paginaGastos - 1))} disabled={paginaGastos === 1} aria-label="Página anterior" className="p-1.5 rounded border border-slate-200 hover:bg-slate-50 disabled:opacity-50 transition-colors duration-150"><ChevronLeft size={16} /></button>
+              <button onClick={() => setPaginaGastos(Math.min(totalPaginas, paginaGastos + 1))} disabled={paginaGastos === totalPaginas} aria-label="Próxima página" className="p-1.5 rounded border border-slate-200 hover:bg-slate-50 disabled:opacity-50 transition-colors duration-150"><ChevronRight size={16} /></button>
             </div>
           </div>
         )}
