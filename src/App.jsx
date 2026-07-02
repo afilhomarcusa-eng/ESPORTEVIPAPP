@@ -801,7 +801,7 @@ export default function App() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-800 font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans">
       <div className="h-1 bg-orange-600" />
       <div className="flex">
         <aside className="hidden lg:flex w-60 shrink-0 bg-slate-900 text-slate-300 flex-col sticky top-0 h-screen border-r border-slate-800">
@@ -2403,7 +2403,6 @@ function FechamentoSemanal({ db, cambById, lancs, gran, ref_, preSelecionar, onC
 
 /* ======================== ABA: AUDITORIA DE CAMBISTAS ======================== */
 function AuditoriaCambistas({ db }) {
-  const [gerando, setGerando] = useState(false);
   const [dtDe, setDtDe] = useState("");
   const [dtAte, setDtAte] = useState("");
   const [ultimaGeracao, setUltimaGeracao] = useState(localStorage.getItem("ultimaGeracaoAuditoriaCambistas"));
@@ -2432,19 +2431,11 @@ function AuditoriaCambistas({ db }) {
     return count;
   })();
 
-  const gerarPdf = async () => {
-    setGerando(true);
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      window.print();
-      const agora = new Date().toLocaleString("pt-BR");
-      setUltimaGeracao(agora);
-      localStorage.setItem("ultimaGeracaoAuditoriaCambistas", agora);
-    } catch (err) {
-      toast("Erro ao gerar PDF: " + err.message, "error");
-    } finally {
-      setGerando(false);
-    }
+  const gerarPdf = () => {
+    window.print();
+    const agora = new Date().toLocaleString("pt-BR");
+    setUltimaGeracao(agora);
+    localStorage.setItem("ultimaGeracaoAuditoriaCambistas", agora);
   };
 
   return (
@@ -2473,16 +2464,16 @@ function AuditoriaCambistas({ db }) {
             <div className={eyebrow}>Semanas</div>
             <div className="text-2xl font-bold text-slate-900 tabular-nums mt-1">{totalSemanas}</div>
           </div>
-          <div className="bg-rose-100 rounded-lg p-3">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-rose-700">Alertas</div>
-            <div className="text-2xl font-bold text-rose-800 tabular-nums mt-1">{alertasPreview}</div>
+          <div className={`rounded-lg p-3 ${alertasPreview > 0 ? "bg-rose-600" : "bg-slate-50"}`}>
+            <div className={`text-[11px] font-semibold uppercase tracking-wider ${alertasPreview > 0 ? "text-rose-100" : "text-slate-500"}`}>Alertas</div>
+            <div className={`text-2xl font-bold tabular-nums mt-1 ${alertasPreview > 0 ? "text-white" : "text-slate-900"}`}>{alertasPreview}</div>
           </div>
         </div>
 
         {ultimaGeracao && <div className="text-xs text-slate-500 mt-3 flex items-center gap-1.5"><Clock size={12} /> Última geração: {ultimaGeracao}</div>}
 
-        <button onClick={gerarPdf} disabled={gerando} className="w-full mt-4 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-bold rounded-lg py-2.5 text-sm flex items-center justify-center gap-2 transition-colors duration-150">
-          {gerando ? <Loader2 size={16} className="animate-spin" /> : <Printer size={16} />} {gerando ? "Gerando..." : "Gerar PDF"}
+        <button onClick={gerarPdf} className="w-full mt-4 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg py-2.5 text-sm flex items-center justify-center gap-2 transition-colors duration-150">
+          <Printer size={16} /> Gerar PDF
         </button>
       </div>
 
@@ -2493,7 +2484,6 @@ function AuditoriaCambistas({ db }) {
 
 /* ======================== ABA: AUDITORIA DE GASTOS ======================== */
 function AuditoriaGastos({ db }) {
-  const [gerando, setGerando] = useState(false);
   const [dtDe, setDtDe] = useState("");
   const [dtAte, setDtAte] = useState("");
   const [ultimaGeracao, setUltimaGeracao] = useState(localStorage.getItem("ultimaGeracaoAuditoriaGastos"));
@@ -2508,19 +2498,11 @@ function AuditoriaGastos({ db }) {
   const totalGasto = meses.reduce((a, m) => a + m.total, 0);
   const alertasCount = alertas.filter((a) => a.tipo !== "aviso").length;
 
-  const gerarPdf = async () => {
-    setGerando(true);
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      window.print();
-      const agora = new Date().toLocaleString("pt-BR");
-      setUltimaGeracao(agora);
-      localStorage.setItem("ultimaGeracaoAuditoriaGastos", agora);
-    } catch (err) {
-      toast("Erro ao gerar PDF: " + err.message, "error");
-    } finally {
-      setGerando(false);
-    }
+  const gerarPdf = () => {
+    window.print();
+    const agora = new Date().toLocaleString("pt-BR");
+    setUltimaGeracao(agora);
+    localStorage.setItem("ultimaGeracaoAuditoriaGastos", agora);
   };
 
   return (
@@ -2549,16 +2531,16 @@ function AuditoriaGastos({ db }) {
             <div className={eyebrow}>Meses</div>
             <div className="text-2xl font-bold text-slate-900 tabular-nums mt-1">{meses.length}</div>
           </div>
-          <div className="bg-rose-100 rounded-lg p-3">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-rose-700">Alertas</div>
-            <div className="text-2xl font-bold text-rose-800 tabular-nums mt-1">{alertasCount}</div>
+          <div className={`rounded-lg p-3 ${alertasCount > 0 ? "bg-rose-600" : "bg-slate-50"}`}>
+            <div className={`text-[11px] font-semibold uppercase tracking-wider ${alertasCount > 0 ? "text-rose-100" : "text-slate-500"}`}>Alertas</div>
+            <div className={`text-2xl font-bold tabular-nums mt-1 ${alertasCount > 0 ? "text-white" : "text-slate-900"}`}>{alertasCount}</div>
           </div>
         </div>
 
         {ultimaGeracao && <div className="text-xs text-slate-500 mt-3 flex items-center gap-1.5"><Clock size={12} /> Última geração: {ultimaGeracao}</div>}
 
-        <button onClick={gerarPdf} disabled={gerando} className="w-full mt-4 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold rounded-lg py-2.5 text-sm flex items-center justify-center gap-2 transition-colors duration-150">
-          {gerando ? <Loader2 size={16} className="animate-spin" /> : <Printer size={16} />} {gerando ? "Gerando..." : "Gerar PDF"}
+        <button onClick={gerarPdf} className="w-full mt-4 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg py-2.5 text-sm flex items-center justify-center gap-2 transition-colors duration-150">
+          <Printer size={16} /> Gerar PDF
         </button>
       </div>
 
