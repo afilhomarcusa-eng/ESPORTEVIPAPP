@@ -24,7 +24,9 @@
       "Bash(curl -s http://localhost:5179/)",
       "Bash(iconv -f utf-8 -t utf-8 src/App.jsx)",
       "Bash(awk 'NR==2859,NR==3200 && /^function /{print NR\": \"$0}' src/App.jsx)",
-      "Bash(awk '/^function RelatorioAuditoriaGastos/{p=1} p{print NR\": \"$0} p && /^}/{c++; if\\(c==1\\) exit}' src/App.jsx)"
+      "Bash(awk '/^function RelatorioAuditoriaGastos/{p=1} p{print NR\": \"$0} p && /^}/{c++; if\\(c==1\\) exit}' src/App.jsx)",
+      "Bash(grep -n 'bg-\\\\${risco.cor}\\\\|getDate\\(\\) - d.getDay\\(\\) + 10\\\\|const ranking = linhas\\\\|rankStyles' src/App.jsx)",
+      "Bash(grep -n 'R\\\\$ \\\\${brl' src/App.jsx)"
     ]
   }
 }

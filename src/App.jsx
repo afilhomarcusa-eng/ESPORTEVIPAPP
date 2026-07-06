@@ -100,6 +100,7 @@ function shiftRef(gran, ref, dir) {
   return d;
 }
 function rotuloPeriodo(gran, ref) {
+  if (gran === "tudo") return "Todo o Período";
   const [s, e] = periodRange(gran, ref);
   if (gran === "ano") return `${ref.getFullYear()}`;
   if (gran === "mes") return `${MESES_L[ref.getMonth()]} de ${ref.getFullYear()}`;
@@ -211,7 +212,7 @@ function analiseAnomalias(semanas, cambista) {
         severidade: bruto < estatBruto.media ? "alto" : "medio",
         semana: semanas[i],
         titulo: bruto < estatBruto.media ? "Semana com bruto anormalmente baixo" : "Semana com bruto anormalmente alto",
-        descricao: `Semana ${i + 1}: R$ ${brl(bruto)} (${(zScore > 0 ? "+" : "")}${zScore.toFixed(2)} desvios). Esperado: R$ ${brl(estatBruto.media)} ± R$ ${brl(estatBruto.desvPadrao)}`,
+        descricao: `Semana ${i + 1}: ${brl(bruto)} (${(zScore > 0 ? "+" : "")}${zScore.toFixed(2)} desvios). Esperado: ${brl(estatBruto.media)} ± ${brl(estatBruto.desvPadrao)}`,
         valor: bruto,
       });
     }
@@ -242,7 +243,7 @@ function analiseAnomalias(semanas, cambista) {
         tipo: "tendencia",
         severidade: percentualQueda > 30 ? "alto" : "medio",
         titulo: "Tendência de declínio de bruto",
-        descricao: `${percentualQueda.toFixed(1)}% de queda do bruto. Primeira metade: R$ ${brl(primeiraMetade)}, segunda metade: R$ ${brl(segundaMetade)}`,
+        descricao: `${percentualQueda.toFixed(1)}% de queda do bruto. Primeira metade: ${brl(primeiraMetade)}, segunda metade: ${brl(segundaMetade)}`,
         percentual: percentualQueda,
       });
     }
@@ -316,9 +317,10 @@ function calcularScoreHistorico(semanas, cambista) {
 }
 
 function classificarRisco(score) {
-  if (score >= 75) return { classificacao: "Confiável", cor: "emerald" };
-  if (score >= 50) return { classificacao: "Atenção", cor: "amber" };
-  return { classificacao: "Alto Risco", cor: "rose" };
+  // classeBadge precisa ser o nome completo da classe: Tailwind não gera classes montadas dinamicamente
+  if (score >= 75) return { classificacao: "Confiável", cor: "emerald", classeBadge: "bg-emerald-600" };
+  if (score >= 50) return { classificacao: "Atenção", cor: "amber", classeBadge: "bg-amber-600" };
+  return { classificacao: "Alto Risco", cor: "rose", classeBadge: "bg-rose-600" };
 }
 
 /* ======================== ANÁLISE DE GASTOS ======================== */
@@ -366,7 +368,7 @@ function analisarGastos(gastos) {
         severidade: totais[i] > estat.media ? "medio" : "alto",
         mes: meses[i],
         titulo: totais[i] > estat.media ? "Mês com gasto anormalmente alto" : "Mês com gasto anormalmente baixo",
-        descricao: `Mês ${meses[i].mes}: R$ ${brl(totais[i])} (${(zScore > 0 ? "+" : "")}${zScore.toFixed(2)} desvios). Esperado: R$ ${brl(estat.media)} ± R$ ${brl(estat.desvPadrao)}`,
+        descricao: `Mês ${meses[i].mes}: ${brl(totais[i])} (${(zScore > 0 ? "+" : "")}${zScore.toFixed(2)} desvios). Esperado: ${brl(estat.media)} ± ${brl(estat.desvPadrao)}`,
         valor: totais[i],
       });
     }
@@ -378,7 +380,7 @@ function analisarGastos(gastos) {
           tipo: "pico",
           severidade: variacao > 0 ? "medio" : "baixo",
           titulo: variacao > 0 ? "Pico abrupto de gastos" : "Queda abrupta de gastos",
-          descricao: `${meses[i].mes} vs ${meses[i - 1].mes}: ${variacao > 0 ? "+" : ""}${(variacao * 100).toFixed(1)}% (de R$ ${brl(totais[i - 1])} para R$ ${brl(totais[i])})`,
+          descricao: `${meses[i].mes} vs ${meses[i - 1].mes}: ${variacao > 0 ? "+" : ""}${(variacao * 100).toFixed(1)}% (de ${brl(totais[i - 1])} para ${brl(totais[i])})`,
           mes: meses[i],
           percentual: variacao * 100,
         });
@@ -400,7 +402,7 @@ function analisarGastos(gastos) {
           tipo: "picoCategoria",
           severidade: "medio",
           titulo: `${categoria} com pico anormal`,
-          descricao: `${meses[i].mes}: R$ ${brl(gastosCat[i])} (${(z).toFixed(2)} desvios acima da média)`,
+          descricao: `${meses[i].mes}: ${brl(gastosCat[i])} (${(z).toFixed(2)} desvios acima da média)`,
           mes: meses[i],
           categoria,
           valor: gastosCat[i],
@@ -442,7 +444,7 @@ function analisarGastos(gastos) {
         tipo: "tendenciaCrescente",
         severidade: crescimento > 0.5 ? "alto" : "medio",
         titulo: "Tendência sustentada de crescimento de gastos",
-        descricao: `Crescimento de ${(crescimento * 100).toFixed(1)}% ao longo do período (primeiro terço: R$ ${brl(primeiroTerco)}, último terço: R$ ${brl(ultimoTerco)})`,
+        descricao: `Crescimento de ${(crescimento * 100).toFixed(1)}% ao longo do período (primeiro terço: ${brl(primeiroTerco)}, último terço: ${brl(ultimoTerco)})`,
         percentual: crescimento * 100,
       });
     }
@@ -643,10 +645,12 @@ function importarExcel(file, update, aoTerminar) {
       const cRows = XLSX.utils.sheet_to_json(wsC, { defval: "" });
       const lRows = XLSX.utils.sheet_to_json(wsL, { defval: "" });
       update((d) => {
+        // Reaproveita o id de cambistas com mesmo nome para não orfanar os pagamentos já registrados
+        const idAntigoPorNome = Object.fromEntries((d.cambistas || []).map((c) => [c.nome.trim().toLowerCase(), c.id]));
         const idPorNome = {};
         d.cambistas = cRows.map((r) => {
           const nome = String(r["Nome"] || "").trim();
-          const id = uid();
+          const id = idAntigoPorNome[nome.toLowerCase()] || uid();
           idPorNome[nome] = id;
           const ativoTxt = String(r["Ativo"] || "Sim").toLowerCase();
           return {
@@ -661,16 +665,20 @@ function importarExcel(file, update, aoTerminar) {
           const nome = String(r["Cambista"] || "").trim();
           const dataRaw = r["Data"];
           const dataObj = dataRaw instanceof Date ? dataRaw : parse(String(dataRaw));
+          const pctNum = Number(r["Percentual"]);
           return {
             id: uid(),
             cambistaId: idPorNome[nome] || null,
             data: iso(dataObj),
             positivo: Number(r["Positivo (R$)"] ?? r["Positivo"] ?? 0),
             movimentacao: null,
-            pct: null,
+            pct: r["Percentual"] === "" || isNaN(pctNum) ? null : pctNum,
             obs: "",
           };
         }).filter((l) => l.cambistaId);
+        // Descarta pagamentos de cambistas que deixaram de existir na planilha importada
+        const idsValidos = new Set(d.cambistas.map((c) => c.id));
+        d.pagamentos = (d.pagamentos || []).filter((p) => idsValidos.has(p.cambistaId));
       });
       aoTerminar(true);
     } catch (err) {
@@ -1370,14 +1378,6 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range, gerarRelatorio 
     const saldo = ag.comissao - pago;
     return { c, ...ag, pago, saldo };
   }).sort((a, b) => b.receber - a.receber), [db, lancsEf, cambById, s, e]);
-
-  const ranking = linhas.slice(0, 3).filter((r) => r.n > 0);
-
-  const rankStyles = [
-    { badge: "bg-orange-400 text-slate-900", card: "border-orange-300 bg-orange-50" },
-    { badge: "bg-slate-300 text-slate-800", card: "border-slate-300 bg-slate-50" },
-    { badge: "bg-amber-300 text-amber-900", card: "border-amber-300 bg-amber-50" },
-  ];
 
   const aoImportar = (file) => {
     if (!file) return;
@@ -2146,7 +2146,7 @@ function FechamentoSemanal({ db, cambById, lancs, gran, ref_, preSelecionar, onC
   const ticketRef = useRef(null);
 
   const [s, e] = periodRange(gran, ref_);
-  const periodoDefault = `${pad(s.getDate())}/${pad(s.getMonth() + 1)} a ${pad(e.getDate())}/${pad(e.getMonth() + 1)}`;
+  const periodoDefault = gran === "tudo" ? "Todo o Período" : `${pad(s.getDate())}/${pad(s.getMonth() + 1)} a ${pad(e.getDate())}/${pad(e.getMonth() + 1)}`;
 
   useEffect(() => {
     if (typeof window === "undefined" || window.html2canvas) { setHtml2canvasPronto(true); return; }
@@ -2325,7 +2325,10 @@ function FechamentoSemanal({ db, cambById, lancs, gran, ref_, preSelecionar, onC
         </div>
 
         <div className="min-w-0">
-          <div id="ticket-print-area" ref={ticketRef} className="rounded-3xl border-4 border-orange-500 p-8" style={{ background: "#020617" }}>
+          {/* IMPORTANTE (exportação): html2canvas 1.4.1 não suporta `gap` em flexbox —
+              dentro desta área use margens (mr-/ml-) em vez de gap, senão a imagem sai
+              com elementos sobrepostos. Largura fixa para o PNG sair como ticket. */}
+          <div id="ticket-print-area" ref={ticketRef} className="rounded-3xl border-4 border-orange-500 p-8 w-full max-w-[460px] mx-auto" style={{ background: "#020617" }}>
             <div className="text-center mb-6">
               <div className="text-2xl font-black tracking-tight"><span className="text-white">ESPORTEVIP</span><span className="text-orange-500">APP</span></div>
               {telefone && <div className="text-white text-sm font-semibold mt-1">{telefone}</div>}
@@ -2335,22 +2338,22 @@ function FechamentoSemanal({ db, cambById, lancs, gran, ref_, preSelecionar, onC
 
             <div className="text-center mb-6">
               <div className="text-[11px] tracking-[0.3em] text-orange-500 font-bold uppercase">RELATÓRIO</div>
-              <div className="text-white font-black uppercase leading-[0.95] mt-1 text-4xl">{rotuloPeriodo(gran, ref_)}</div>
-              <div className="inline-flex items-center gap-2 mt-4 bg-slate-800/70 border border-slate-700 rounded-full px-4 py-1.5 text-xs text-slate-300">
-                <span className="text-slate-500">Período</span><span className="font-semibold text-white">{periodoTxt || periodoDefault}</span>
+              <div className="text-white font-black uppercase leading-[0.95] mt-1 text-3xl">{rotuloPeriodo(gran, ref_)}</div>
+              <div className="inline-block mt-4 bg-slate-800/70 border border-slate-700 rounded-full px-4 py-1.5 text-xs">
+                <span className="text-slate-500 mr-2">Período</span><span className="font-semibold text-white">{periodoTxt || periodoDefault}</span>
               </div>
             </div>
 
             <div className="bg-white rounded-2xl overflow-hidden">
               <div className="flex items-center justify-between px-5 pt-5 pb-4">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-9 h-9 rounded-full bg-orange-500 text-white font-bold flex items-center justify-center shrink-0">{inicial}</div>
+                <div className="flex items-center min-w-0">
+                  <div className="w-9 h-9 rounded-full bg-orange-500 text-white font-bold flex items-center justify-center shrink-0 mr-3">{inicial}</div>
                   <div className="min-w-0">
                     <div className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold">Cambista</div>
                     <div className="text-slate-900 font-bold truncate leading-relaxed pb-0.5">{nome || "Sem Nome"}</div>
                   </div>
                 </div>
-                <div className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold shrink-0">Fechamento</div>
+                <div className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold shrink-0 ml-3">Fechamento</div>
               </div>
               <div className="relative border-t border-dashed border-slate-200">
                 <span className="absolute -left-3 -top-3 w-6 h-6 rounded-full" style={{ background: "#020617" }} />
@@ -2361,7 +2364,7 @@ function FechamentoSemanal({ db, cambById, lancs, gran, ref_, preSelecionar, onC
                 <span className="text-slate-900 font-bold text-2xl tabular-nums">{numFmt(brutoNum)}</span>
               </div>
               <div className="px-5 pb-4 pt-4 flex items-center justify-between border-t border-slate-100">
-                <span className="text-slate-500 font-medium flex items-center gap-2">Comissão <span className="text-[10px] bg-orange-50 text-orange-600 font-bold px-1.5 py-0.5 rounded">{pctNum}%</span></span>
+                <span className="text-slate-500 font-medium">Comissão <span className="text-[10px] bg-orange-50 text-orange-600 font-bold px-1.5 py-0.5 rounded ml-1.5">{pctNum}%</span></span>
                 <span className="text-slate-900 font-bold text-2xl tabular-nums">{numFmt(comissaoNum)}</span>
               </div>
               <div className={`px-5 py-4 flex items-center justify-between ${modo === "paga" ? "bg-red-600" : "bg-emerald-600"}`}>
@@ -2369,19 +2372,19 @@ function FechamentoSemanal({ db, cambById, lancs, gran, ref_, preSelecionar, onC
                   <div className="text-[10px] uppercase tracking-wide text-white/70 font-semibold">Total Geral</div>
                   <div className="text-white font-bold">{modo === "paga" ? "Você Paga" : "Nós Temos que Pagar"}</div>
                 </div>
-                <div className="text-white text-right">
+                <div className="text-white text-right ml-3">
                   <span className="text-base font-semibold align-top mr-0.5">R$</span><span className="text-3xl font-black">{numFmt(totalNum)}</span>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-center gap-5 mt-4 text-xs text-slate-400 flex-wrap">
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Você Paga</span>
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" /> Nós Temos que Pagar</span>
+            <div className="text-center mt-4 text-xs text-slate-400">
+              <span className="whitespace-nowrap mr-5"><span className="w-2 h-2 rounded-full bg-red-500 inline-block mr-1.5" />Você Paga</span>
+              <span className="whitespace-nowrap"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block mr-1.5" />Nós Temos que Pagar</span>
             </div>
 
-            <div className="mt-4 bg-slate-800/60 border border-slate-700 rounded-xl p-4 flex items-center gap-3">
-              <div className="bg-green-500 text-slate-950 font-black text-xs rounded-lg px-2.5 py-1.5 shrink-0">PIX</div>
+            <div className="mt-4 bg-slate-800/60 border border-slate-700 rounded-xl p-4 flex items-center">
+              <div className="bg-green-500 text-slate-950 font-black text-xs rounded-lg px-2.5 py-1.5 shrink-0 mr-3">PIX</div>
               <div className="min-w-0">
                 <div className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold">Forma de Pagamento</div>
                 <div className="text-white font-bold text-sm leading-relaxed pb-0.5">Aguarde enviarmos a chave Pix</div>
@@ -2389,8 +2392,8 @@ function FechamentoSemanal({ db, cambById, lancs, gran, ref_, preSelecionar, onC
             </div>
 
             {pagamentoAte && (
-              <div className="mt-4 flex items-center gap-2 text-xs text-slate-400">
-                <span className="w-1.5 h-1.5 rounded-full bg-orange-500 inline-block shrink-0" />
+              <div className="mt-4 text-xs text-slate-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-orange-500 inline-block mr-2" />
                 Realize o pagamento até <span className="font-bold text-white">{pagamentoAte}</span>
               </div>
             )}
@@ -2416,10 +2419,7 @@ function AuditoriaCambistas({ db }) {
   const lancamentosPreview = filtroAtivo ? (db.lancamentos || []).filter((l) => dentro(l, parse(dtDe), parse(dtAte))) : (db.lancamentos || []);
   const pagamentosPreview = filtroAtivo ? (db.pagamentos || []).filter((p) => dentro(p, parse(dtDe), parse(dtAte))) : (db.pagamentos || []);
 
-  const totalSemanas = new Set(lancamentosPreview.map((l) => {
-    const d = parse(l.data);
-    return `${d.getFullYear()}-W${Math.ceil((d.getDate() - d.getDay() + 10) / 7)}`;
-  })).size;
+  const totalSemanas = new Set(lancamentosPreview.map((l) => iso(startOfWeek(parse(l.data))))).size;
 
   const alertasPreview = (() => {
     let count = 0;
@@ -2684,7 +2684,7 @@ function RelatorioAuditoriaGastos({ db, dtDe, dtAte }) {
         <div className="text-center border-b pb-6">
           <h1 className="text-4xl font-black text-slate-900">RELATÓRIO DE AUDITORIA DE GASTOS</h1>
           <p className="text-sm text-slate-500 mt-2">Análise Completa do Histórico de Despesas</p>
-          <p className="text-xs text-slate-400 mt-1">Período: {meses.length > 0 ? `${fmtData(iso(meses[0].data))} a ${fmtData(iso(meses[meses.length - 1].data))}` : "Sem dados"} ({meses.length} meses)</p>
+          <p className="text-xs text-slate-400 mt-1">Período: {meses.length > 0 ? `${fmtData(iso(meses[0].data))} a ${fmtData(iso(new Date(meses[meses.length - 1].data.getFullYear(), meses[meses.length - 1].data.getMonth() + 1, 0)))}` : "Sem dados"} ({meses.length} meses)</p>
         </div>
 
         <div className="space-y-4">
@@ -3007,7 +3007,7 @@ function RelatorioAuditoria({ db, dtDe, dtAte }) {
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
             <div className="bg-slate-100 p-2 rounded"><span className="text-slate-600">Cambistas Ativos:</span> <span className="font-bold">{db.cambistas.filter((c) => c.ativo).length}</span></div>
-            <div className="bg-slate-100 p-2 rounded"><span className="text-slate-600">Semanas Analisadas:</span> <span className="font-bold">{new Set(lancamentosFiltrados.map((l) => `${parse(l.data).getFullYear()}-W${Math.ceil((parse(l.data).getDate() - parse(l.data).getDay() + 10) / 7)}`)).size}</span></div>
+            <div className="bg-slate-100 p-2 rounded"><span className="text-slate-600">Semanas Analisadas:</span> <span className="font-bold">{new Set(lancamentosFiltrados.map((l) => iso(startOfWeek(parse(l.data))))).size}</span></div>
             <div className="bg-rose-100 p-2 rounded"><span className="text-rose-600">Em Atraso:</span> <span className="font-bold">{cambistaEmAtraso}</span></div>
             <div className="bg-amber-100 p-2 rounded"><span className="text-amber-600">Risco Médio:</span> <span className="font-bold">Análise Concluída</span></div>
           </div>
@@ -3031,7 +3031,7 @@ function RelatorioAuditoria({ db, dtDe, dtAte }) {
                   <h3 className="text-xl font-bold text-slate-900">{cambista.nome}</h3>
                   <p className="text-xs text-slate-500">{cambista.contato || "Sem contato"} | Comissão padrão: {pct(cambista.comissaoPadrao)}</p>
                 </div>
-                <div className={`px-3 py-1 rounded-lg text-xs font-bold text-white bg-${risco.cor}-600`}>
+                <div className={`px-3 py-1 rounded-lg text-xs font-bold text-white ${risco.classeBadge}`}>
                   {risco.classificacao} (Score: {score.toFixed(0)})
                 </div>
               </div>
