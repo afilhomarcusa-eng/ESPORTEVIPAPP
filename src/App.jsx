@@ -768,27 +768,98 @@ function parseDataSheet(v) {
   return null;
 }
 
-async function buscarAbaCsv(sheetId, nomeAba) {
-  const res = await fetch(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(nomeAba)}`);
-  if (!res.ok) throw new Error(`Não consegui acessar a aba "${nomeAba}" (HTTP ${res.status}).`);
+async function buscarCsvLinhas(sheetId, nomeAba) {
+  const parametroAba = nomeAba ? `&sheet=${encodeURIComponent(nomeAba)}` : "";
+  const res = await fetch(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv${parametroAba}`);
+  if (!res.ok) throw new Error(`Não consegui acessar a planilha (HTTP ${res.status}).`);
   const text = await res.text();
   if (text.trim().startsWith("<")) throw new Error("Sem acesso à planilha. No Google Sheets, use Compartilhar → \"Qualquer pessoa com o link\" → Leitor.");
-  return linhasParaObjetos(csvParse(text));
+  return csvParse(text);
+}
+
+async function buscarAbaCsv(sheetId, nomeAba) {
+  return linhasParaObjetos(await buscarCsvLinhas(sheetId, nomeAba));
+}
+
+/* Modo "Planilha de Comissões": uma aba única com as colunas
+   NOME | POSITIVO | PERCENTUAL | VALOR EFETIVO | RECEBER | PAGAMENTO
+   (título acima do cabeçalho é ignorado; coluna DATA é opcional).      */
+function montarDeComissoes(bruto, db) {
+  const idxHeader = bruto.findIndex((r) => {
+    const up = r.map((c) => String(c).trim().toUpperCase());
+    return up.includes("NOME") && up.some((c) => c.startsWith("POSITIVO"));
+  });
+  if (idxHeader === -1) return null;
+
+  const header = bruto[idxHeader].map((c) => String(c).trim().toUpperCase());
+  const col = (prefixo) => header.findIndex((h) => h.startsWith(prefixo));
+  const iNome = col("NOME"), iPos = col("POSITIVO"), iPct = col("PERCENTUAL"), iPag = col("PAGAMENTO"), iData = col("DATA");
+
+  const hoje = iso(new Date());
+  const idAntigoPorNome = Object.fromEntries((db.cambistas || []).map((c) => [c.nome.trim().toLowerCase(), c.id]));
+  const porNome = new Map(); // chave minúscula → cambista
+  const lancamentos = [];
+  const pagamentos = [];
+
+  for (const r of bruto.slice(idxHeader + 1)) {
+    const nome = String(r[iNome] ?? "").trim();
+    if (!nome) continue;
+    const chave = nome.toLowerCase();
+    if (!porNome.has(chave)) {
+      porNome.set(chave, {
+        id: idAntigoPorNome[chave] || uid(),
+        nome, contato: "", comissaoPadrao: 0.1, ativo: true, criadoEm: hoje,
+      });
+    }
+    const camb = porNome.get(chave);
+    const data = (iData !== -1 && parseDataSheet(r[iData])) || hoje;
+    const posBruto = String(r[iPos] ?? "").trim();
+    if (posBruto !== "") {
+      const pct = iPct !== -1 ? (parsePctSheet(r[iPct]) ?? 0) : 0;
+      lancamentos.push({ id: uid(), cambistaId: camb.id, data, positivo: parseNumeroSheet(posBruto), movimentacao: null, pct, obs: "" });
+      if (pct > 0) camb.comissaoPadrao = pct; // último percentual usado vira o padrão do cambista
+    }
+    if (iPag !== -1) {
+      const pagBruto = String(r[iPag] ?? "").trim();
+      const valorPag = parseNumeroSheet(pagBruto);
+      if (pagBruto !== "" && valorPag !== 0) pagamentos.push({ id: uid(), cambistaId: camb.id, data, valor: valorPag, obs: "planilha" });
+    }
+  }
+
+  const cambistas = [...porNome.values()];
+  if (!cambistas.length) return null;
+  return { cambistas, lancamentos, pagamentos };
 }
 
 async function sincronizarPlanilha(url, db, update) {
   const sheetId = extrairSheetId(url);
   if (!sheetId) throw new Error("Link inválido. Cole o link de compartilhamento do Google Sheets (docs.google.com/spreadsheets/d/...).");
 
-  const cRows = await buscarAbaCsv(sheetId, "Cambistas");
-  let lRows;
-  try { lRows = await buscarAbaCsv(sheetId, "Lancamentos"); }
-  catch { lRows = await buscarAbaCsv(sheetId, "Lançamentos"); }
-  let pRows = null;
-  try { pRows = await buscarAbaCsv(sheetId, "Pagamentos"); } catch { /* aba opcional */ }
+  // 1) Tenta o modelo completo (abas Cambistas / Lancamentos / Pagamentos)
+  let cRows = null, lRows = null, pRows = null;
+  try {
+    cRows = await buscarAbaCsv(sheetId, "Cambistas");
+    try { lRows = await buscarAbaCsv(sheetId, "Lancamentos"); }
+    catch { lRows = await buscarAbaCsv(sheetId, "Lançamentos"); }
+  } catch { /* sem as abas do modelo completo — tenta o modo Planilha de Comissões */ }
 
-  if (!cRows.length || !("Nome" in cRows[0])) throw new Error('A aba "Cambistas" precisa das colunas Nome, Contato, Comissao Padrao e Ativo (mesmo modelo do arquivo exportado).');
-  if (!lRows.length || !("Cambista" in lRows[0])) throw new Error('A aba "Lancamentos" precisa das colunas Data, Cambista, Positivo (R$) e Percentual.');
+  if (!cRows?.length || !("Nome" in cRows[0]) || !lRows?.length || !("Cambista" in lRows[0])) {
+    // 2) Modo Planilha de Comissões: lê a primeira aba e procura o cabeçalho
+    const bruto = await buscarCsvLinhas(sheetId, null);
+    const montado = montarDeComissoes(bruto, db);
+    if (!montado) throw new Error('A planilha está vazia ou fora do modelo. Use as colunas NOME, POSITIVO, PERCENTUAL e PAGAMENTO (Planilha de Comissões) ou as abas "Cambistas"/"Lancamentos" do arquivo exportado.');
+    const agora = new Date().toLocaleString("pt-BR");
+    update((d) => {
+      d.cambistas = montado.cambistas;
+      d.lancamentos = montado.lancamentos;
+      d.pagamentos = montado.pagamentos;
+      d.planilhaUrl = url;
+      d.planilhaUltimaSync = agora;
+    });
+    return { cambistas: montado.cambistas.length, lancamentos: montado.lancamentos.length, pagamentos: montado.pagamentos.length };
+  }
+
+  try { pRows = await buscarAbaCsv(sheetId, "Pagamentos"); } catch { /* aba opcional */ }
 
   // Monta tudo fora do updater do React (o updater roda depois, de forma assíncrona)
   const idAntigoPorNome = Object.fromEntries((db.cambistas || []).map((c) => [c.nome.trim().toLowerCase(), c.id]));
@@ -1780,7 +1851,7 @@ function ModalPlanilhaOnline({ db, update, sincronizando, onSincronizar, onClose
             Edite os dados direto no Google Sheets e clique em <span className="font-semibold">Sincronizar</span> aqui — o site é atualizado com o que está na planilha.
           </div>
           <ol className="text-xs text-slate-600 space-y-2 list-decimal list-inside bg-slate-50 rounded-lg p-3">
-            <li>Clique em <span className="font-semibold">Exportar Planilha</span> nesta tela e importe o arquivo no Google Sheets (Arquivo → Importar → Fazer upload).</li>
+            <li>Use a <span className="font-semibold">Planilha de Comissões</span> (colunas NOME, POSITIVO, PERCENTUAL, PAGAMENTO) ou importe o arquivo do botão <span className="font-semibold">Exportar Planilha</span> no Google Sheets.</li>
             <li>No Sheets: <span className="font-semibold">Compartilhar → Acesso geral: "Qualquer pessoa com o link" → Leitor</span> e copie o link.</li>
             <li>Cole o link abaixo, salve e clique em Sincronizar sempre que editar a planilha.</li>
           </ol>
@@ -1790,7 +1861,7 @@ function ModalPlanilhaOnline({ db, update, sincronizando, onSincronizar, onClose
           </div>
           {db.planilhaUltimaSync && <div className="text-xs text-slate-500 flex items-center gap-1.5"><Clock size={12} /> Última sincronização: {db.planilhaUltimaSync}</div>}
           <div className="text-[11px] text-amber-700 bg-amber-100 border border-amber-300 rounded-lg p-2.5">
-            A planilha vira a fonte dos dados: sincronizar <span className="font-semibold">substitui</span> cambistas, lançamentos e pagamentos do site pelos dela. As abas precisam seguir o modelo exportado (Cambistas, Lancamentos e, opcionalmente, Pagamentos).
+            A planilha vira a fonte dos dados: sincronizar <span className="font-semibold">substitui</span> cambistas, lançamentos e pagamentos do site pelos dela. Sem coluna DATA, os lançamentos entram com a data do dia da sincronização.
           </div>
         </div>
         <div className="flex justify-end gap-2 px-5 py-4 border-t border-slate-100">

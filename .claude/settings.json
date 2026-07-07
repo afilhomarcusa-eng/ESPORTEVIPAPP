@@ -29,7 +29,13 @@
       "Bash(grep -n 'R\\\\$ \\\\${brl' src/App.jsx)",
       "Bash(node \"C:\\\\Users\\\\osnav\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-osnav-OneDrive-Desktop-esportevip\\\\3dd64716-d988-4666-a0d3-503ab8aed8d6\\\\scratchpad\\\\verifica-planilha.mjs\")",
       "Bash(node -e ' *)",
-      "Bash(node \"C:\\\\Users\\\\osnav\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-osnav-OneDrive-Desktop-esportevip\\\\3dd64716-d988-4666-a0d3-503ab8aed8d6\\\\scratchpad\\\\verifica-sync.mjs\")"
+      "Bash(node \"C:\\\\Users\\\\osnav\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-osnav-OneDrive-Desktop-esportevip\\\\3dd64716-d988-4666-a0d3-503ab8aed8d6\\\\scratchpad\\\\verifica-sync.mjs\")",
+      "Bash(curl -sL \"https://docs.google.com/spreadsheets/d/1HqBbgUXiJo3dyPl-xuCvPsiOvTTysDTwzB1HOTTwbhY/gviz/tq?tqx=out:csv\")",
+      "Bash(curl -sL -w \"HTTP %{http_code}\\\\n\" -o /tmp/sheet.csv \"https://docs.google.com/spreadsheets/d/1HqBbgUXiJo3dyPl-xuCvPsiOvTTysDTwzB1HOTTwbhY/gviz/tq?tqx=out:csv\")",
+      "Bash(curl -sL -w \"\\\\nHTTP %{http_code}, %{size_download} bytes\\\\n\" \"https://docs.google.com/spreadsheets/d/1HqBbgUXiJo3dyPl-xuCvPsiOvTTysDTwzB1HOTTwbhY/export?format=csv\")",
+      "Bash(curl -s -A \"Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\)\" -L \"https://docs.google.com/spreadsheets/d/1HqBbgUXiJo3dyPl-xuCvPsiOvTTysDTwzB1HOTTwbhY/export?format=csv\" -o /tmp/sheet2.csv)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(node \"C:\\\\Users\\\\osnav\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-osnav-OneDrive-Desktop-esportevip\\\\3dd64716-d988-4666-a0d3-503ab8aed8d6\\\\scratchpad\\\\gera-planilha-comissoes.mjs\")"
     ]
   }
 }
