@@ -770,6 +770,10 @@ function parseDataSheet(v) {
 
 async function buscarCsvLinhas(sheetId, nomeAba) {
   const parametroAba = nomeAba ? `&sheet=${encodeURIComponent(nomeAba)}` : "";
+  // Modo automático de cabeçalho do gviz: os rótulos sempre vêm na primeira linha do CSV,
+  // porém fundidos com qualquer título acima (ex.: "PLANILHA DE COMISSÕES NOME") — por
+  // isso a detecção de colunas usa endsWith/startsWith. NÃO usar headers=0: nesse modo o
+  // gviz tipa as colunas de dinheiro como numéricas e descarta os rótulos de texto delas.
   const res = await fetch(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv${parametroAba}`);
   if (!res.ok) throw new Error(`Não consegui acessar a planilha (HTTP ${res.status}).`);
   const text = await res.text();
@@ -827,12 +831,13 @@ function aplicarCambistasDaPlanilha(bruto, cambistas) {
   if (!bruto || !bruto.length) return;
   const idx = bruto.findIndex((r) => {
     const up = r.map((c) => String(c).trim().toUpperCase());
-    return up.includes("NOME") && (up.some((c) => c.startsWith("CONTATO")) || up.some((c) => c.startsWith("COMISS")));
+    return up.some((c) => c.endsWith("NOME")) && (up.some((c) => c.startsWith("CONTATO")) || up.some((c) => c.startsWith("COMISS")));
   });
   if (idx === -1) return;
   const header = bruto[idx].map((c) => String(c).trim().toUpperCase());
   const col = (p) => header.findIndex((h) => h.startsWith(p));
-  const iNome = col("NOME"), iCont = col("CONTATO"), iPct = col("COMISS"), iAtivo = col("ATIVO");
+  const iNome = header.findIndex((h) => h.endsWith("NOME"));
+  const iCont = col("CONTATO"), iPct = col("COMISS"), iAtivo = col("ATIVO");
   const porChave = Object.fromEntries(cambistas.map((c) => [c.nome.trim().toLowerCase(), c]));
   for (const r of bruto.slice(idx + 1)) {
     const nome = String(r[iNome] ?? "").trim();
@@ -853,15 +858,18 @@ function aplicarCambistasDaPlanilha(bruto, cambistas) {
    NOME | POSITIVO | PERCENTUAL | VALOR EFETIVO | RECEBER | PAGAMENTO
    (título acima do cabeçalho é ignorado; coluna DATA é opcional).      */
 function montarDeComissoes(bruto, db) {
+  // "termina com NOME" tolera o gviz fundir o título com o cabeçalho
+  // (ex.: "PLANILHA DE COMISSÕES NOME" na primeira célula)
   const idxHeader = bruto.findIndex((r) => {
     const up = r.map((c) => String(c).trim().toUpperCase());
-    return up.includes("NOME") && up.some((c) => c.startsWith("POSITIVO"));
+    return up.some((c) => c.endsWith("NOME")) && up.some((c) => c.startsWith("POSITIVO"));
   });
   if (idxHeader === -1) return null;
 
   const header = bruto[idxHeader].map((c) => String(c).trim().toUpperCase());
   const col = (prefixo) => header.findIndex((h) => h.startsWith(prefixo));
-  const iNome = col("NOME"), iPos = col("POSITIVO"), iPct = col("PERCENTUAL"), iPag = col("PAGAMENTO"), iData = col("DATA");
+  const iNome = header.findIndex((h) => h.endsWith("NOME"));
+  const iPos = col("POSITIVO"), iPct = col("PERCENTUAL"), iPag = col("PAGAMENTO"), iData = col("DATA");
 
   const hoje = iso(new Date());
   const idAntigoPorNome = Object.fromEntries((db.cambistas || []).map((c) => [c.nome.trim().toLowerCase(), c.id]));
