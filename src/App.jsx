@@ -585,7 +585,7 @@ async function loadDB() {
 async function saveDB(db) { try { await window.storage.set(KEY, JSON.stringify(db)); return true; } catch (e) { return false; } }
 
 /* ======================== EXPORTAÇÃO EXCEL ======================== */
-function exportarExcel({ db }) {
+function exportarExcel({ db, incluirGastos = true }) {
   const wb = XLSX.utils.book_new();
   const MOEDA = 'R$ #,##0.00;[RED]-R$ #,##0.00;"-"';
   const cambById = Object.fromEntries(db.cambistas.map((c) => [c.id, c]));
@@ -598,10 +598,13 @@ function exportarExcel({ db }) {
     return [parse(l.data), c?.nome || "", l.positivo, p, null, null];
   });
   const wsL = XLSX.utils.aoa_to_sheet([lHead, ...lRows]);
-  lRows.forEach((_, i) => {
+  lRows.forEach((row, i) => {
     const r = i + 2;
-    wsL[`E${r}`] = { t: "n", f: `C${r}*D${r}`, z: MOEDA };
-    wsL[`F${r}`] = { t: "n", f: `C${r}-E${r}`, z: MOEDA };
+    // SheetJS CE descarta células de fórmula sem valor cacheado (v) ao gravar o .xlsx —
+    // o v precisa vir junto, senão as colunas E/F chegam vazias no Excel
+    const efetivo = row[2] * row[3];
+    wsL[`E${r}`] = { t: "n", v: efetivo, f: `C${r}*D${r}`, z: MOEDA };
+    wsL[`F${r}`] = { t: "n", v: row[2] - efetivo, f: `C${r}-E${r}`, z: MOEDA };
     if (wsL[`A${r}`]) wsL[`A${r}`].z = "dd/mm/yyyy";
     if (wsL[`C${r}`]) wsL[`C${r}`].z = MOEDA;
     if (wsL[`D${r}`]) wsL[`D${r}`].z = "0.0%";
@@ -624,14 +627,16 @@ function exportarExcel({ db }) {
   wsP["!cols"] = [{ wch: 12 }, { wch: 16 }, { wch: 14 }, { wch: 24 }];
   XLSX.utils.book_append_sheet(wb, wsP, "Pagamentos");
 
-  const gHead = ["Data", "Categoria", "Responsável", "Descrição", "Valor (R$)"];
-  const gRows = (db.gastos || []).map((g) => [parse(g.data), g.categoria || "", g.responsavel || "", g.descricao || "", g.valor]);
-  const wsG = XLSX.utils.aoa_to_sheet([gHead, ...gRows]);
-  gRows.forEach((_, i) => { const r = i + 2; if (wsG[`A${r}`]) wsG[`A${r}`].z = "dd/mm/yyyy"; if (wsG[`E${r}`]) wsG[`E${r}`].z = MOEDA; });
-  wsG["!cols"] = [{ wch: 12 }, { wch: 18 }, { wch: 18 }, { wch: 25 }, { wch: 14 }];
-  XLSX.utils.book_append_sheet(wb, wsG, "Gastos");
+  if (incluirGastos) {
+    const gHead = ["Data", "Categoria", "Responsável", "Descrição", "Valor (R$)"];
+    const gRows = (db.gastos || []).map((g) => [parse(g.data), g.categoria || "", g.responsavel || "", g.descricao || "", g.valor]);
+    const wsG = XLSX.utils.aoa_to_sheet([gHead, ...gRows]);
+    gRows.forEach((_, i) => { const r = i + 2; if (wsG[`A${r}`]) wsG[`A${r}`].z = "dd/mm/yyyy"; if (wsG[`E${r}`]) wsG[`E${r}`].z = MOEDA; });
+    wsG["!cols"] = [{ wch: 12 }, { wch: 18 }, { wch: 18 }, { wch: 25 }, { wch: 14 }];
+    XLSX.utils.book_append_sheet(wb, wsG, "Gastos");
+  }
 
-  XLSX.writeFile(wb, `esportevipapp-${iso(new Date())}.xlsx`);
+  XLSX.writeFile(wb, `esportevipapp-${incluirGastos ? "" : "fechamento-"}${iso(new Date())}.xlsx`);
 }
 
 function importarExcel(file, update, aoTerminar) {
@@ -810,51 +815,43 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans">
-      <div className="h-1 bg-orange-600" />
-      <div className="flex">
-        <aside className="hidden lg:flex w-60 shrink-0 bg-slate-900 text-slate-300 flex-col sticky top-0 h-screen border-r border-slate-800">
-          <div className="px-5 py-5 border-b border-slate-800/80">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-full bg-orange-500 flex items-center justify-center text-slate-900 font-black text-xs shrink-0">EA</div>
-              <div className="min-w-0">
-                <div className="text-white font-semibold leading-tight tracking-tight">ESPORTEVIPAPP</div>
-                <div className="text-[11px] text-orange-400/90">gestão de negócios</div>
-              </div>
-            </div>
-          </div>
-          <nav className="p-3 flex-1 space-y-0.5">
-            {nav.map((n) => {
-              const Ic = n.icon; const on = aba === n.id;
-              return (
-                <button key={n.id} onClick={() => irAba(n.id)}
-                  className={`group w-full flex items-center gap-3 pl-3 pr-3 py-2.5 rounded-lg text-sm transition-all duration-150 relative ${on ? "bg-orange-500/20 text-orange-300 font-medium" : "text-slate-400 hover:bg-slate-800/70 hover:text-slate-200"}`}>
-                  {on && <span className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full bg-orange-400" />}
-                  <Ic size={18} className={`shrink-0 transition-transform duration-150 ${on ? "text-orange-400" : "group-hover:scale-105"}`} /> {n.nome}
+      <header className="sticky top-0 z-20">
+        <div className="bg-slate-900 border-b-2 border-orange-500">
+          <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 flex items-center h-14">
+            <div className="font-black tracking-tight text-base mr-8 shrink-0"><span className="text-white">ESPORTEVIP</span><span className="text-orange-500">APP</span></div>
+            <nav className="hidden lg:flex items-stretch self-stretch mr-auto">
+              {nav.map((n) => {
+                const on = aba === n.id;
+                return (
+                  <button key={n.id} onClick={() => irAba(n.id)}
+                    className={`relative px-4 text-sm font-medium transition-colors duration-150 ${on ? "text-white" : "text-slate-400 hover:text-slate-200"}`}>
+                    {n.nome}
+                    {on && <span className="absolute left-3 right-3 bottom-0 h-[3px] rounded-t-full bg-orange-500" />}
+                  </button>
+                );
+              })}
+            </nav>
+            <div className="ml-auto lg:ml-0 flex items-center">
+              <span className="hidden sm:flex items-center text-[11px] text-slate-500 mr-4">
+                <Circle size={7} className={`mr-1.5 ${salvando ? "text-amber-400 fill-amber-400" : "text-emerald-400 fill-emerald-400"}`} />
+                {salvando ? "Salvando..." : "Tudo salvo"}
+              </span>
+              {db.exemplo && (
+                <button onClick={() => { if (confirm("Zerar todos os dados de exemplo e começar do zero?")) setDb({ cambistas: [], lancamentos: [], pagamentos: [], gastos: [], metaMensal: 10000, exemplo: false, version: 4 }); }}
+                  title="Limpar dados de exemplo" className="text-[11px] text-slate-400 hover:text-rose-300 border border-slate-700 rounded-lg px-2.5 py-1.5 mr-2 transition-colors inline-flex items-center">
+                  <RotateCcw size={12} className="mr-1.5" /> Limpar exemplo
                 </button>
-              );
-            })}
-          </nav>
-          <div className="p-3 border-t border-slate-800/80">
-            <div className="flex items-center gap-2 text-[11px] text-slate-500 px-2 py-1.5">
-              <Circle size={7} className={salvando ? "text-amber-400 fill-amber-400" : "text-emerald-400 fill-emerald-400"} />
-              {salvando ? "Salvando..." : "Tudo salvo"}
-            </div>
-            {db.exemplo && (
-              <button onClick={() => { if (confirm("Zerar todos os dados de exemplo e começar do zero?")) setDb({ cambistas: [], lancamentos: [], pagamentos: [], gastos: [], metaMensal: 10000, exemplo: false, version: 4 }); }}
-                className="mt-1 w-full flex items-center justify-center gap-2 text-[11px] text-slate-500 hover:text-rose-300 hover:border-rose-900/50 border border-slate-800 rounded-lg py-2 transition-colors">
-                <RotateCcw size={12} /> Limpar exemplo
+              )}
+              <button onClick={() => { try { localStorage.removeItem("esportevipapp:unlocked"); } catch {} setAutenticado(false); }}
+                title="Bloquear acesso" aria-label="Bloquear acesso" className="text-slate-400 hover:text-white p-2 rounded-lg hover:bg-slate-800 transition-colors">
+                <Lock size={15} />
               </button>
-            )}
-            <button onClick={() => { try { localStorage.removeItem("esportevipapp:unlocked"); } catch {} setAutenticado(false); }}
-              className="mt-1 w-full flex items-center justify-center gap-2 text-[11px] text-slate-500 hover:text-slate-300 border border-slate-800 rounded-lg py-2 transition-colors">
-              <Lock size={12} /> Bloquear acesso
-            </button>
+            </div>
           </div>
-        </aside>
+        </div>
 
-        <div className="flex-1 min-w-0">
-          <header className="sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-slate-200 px-4 sm:px-6 py-3.5 flex items-center gap-3 flex-wrap">
-            <div className="lg:hidden w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center text-slate-900 font-black text-[11px] shrink-0">EA</div>
+        <div className="bg-white/90 backdrop-blur border-b border-slate-200">
+          <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center gap-3 flex-wrap">
             <div className="mr-auto min-w-0">
               <div className="text-lg sm:text-xl font-bold tracking-tight text-slate-900 truncate">{nav.find((n) => n.id === aba)?.nome}</div>
               {db.exemplo && <div className="text-[11px] text-amber-600 hidden sm:block mt-0.5">Você está vendo dados de exemplo. Edite ou limpe quando quiser.</div>}
@@ -868,26 +865,26 @@ export default function App() {
               <PeriodPicker gran={gran} setGran={setGran} ref_={ref} setRef={setRef}
                 opts={aba === "relatorios" ? [["semana","Semanal"],["tudo","Tudo"]] : undefined} />
             )}
-          </header>
-
-          <main className="p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8 max-w-[1400px] mx-auto min-w-0">
-            {aba === "dashboard" && (
-              <Dashboard db={db} update={update} cambById={cambById} lancs={lancsPeriodo}
-                totais={totais} totaisPrev={totaisPrev} gran={gran} ref_={ref} range={[s, e]} />
-            )}
-            {aba === "cambistas" && (
-              <Cambistas db={db} update={update} cambById={cambById} lancs={lancsPeriodo} rotulo={rotuloPeriodo(gran, ref)} range={[s, e]} gerarRelatorio={gerarRelatorioSemanal} />
-            )}
-            {aba === "gastos" && (
-              <GastosControl db={db} update={update} gran={gran} ref_={ref} range={[s, e]} />
-            )}
-            {aba === "relatorios" && (
-              <Relatorios db={db} cambById={cambById} lancs={lancsPeriodo} gran={gran} ref_={ref} preSelecionar={relatorioPre} onConsumir={() => setRelatorioPre(null)}
-                abaRelatorios={abaRelatorios} setAbaRelatorios={setAbaRelatorios} />
-            )}
-          </main>
+          </div>
         </div>
-      </div>
+      </header>
+
+      <main className="p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8 max-w-[1400px] mx-auto min-w-0">
+        {aba === "dashboard" && (
+          <Dashboard db={db} update={update} cambById={cambById} lancs={lancsPeriodo}
+            totais={totais} totaisPrev={totaisPrev} gran={gran} ref_={ref} range={[s, e]} />
+        )}
+        {aba === "cambistas" && (
+          <Cambistas db={db} update={update} cambById={cambById} lancs={lancsPeriodo} rotulo={rotuloPeriodo(gran, ref)} range={[s, e]} gerarRelatorio={gerarRelatorioSemanal} />
+        )}
+        {aba === "gastos" && (
+          <GastosControl db={db} update={update} gran={gran} ref_={ref} range={[s, e]} />
+        )}
+        {aba === "relatorios" && (
+          <Relatorios db={db} cambById={cambById} lancs={lancsPeriodo} gran={gran} ref_={ref} preSelecionar={relatorioPre} onConsumir={() => setRelatorioPre(null)}
+            abaRelatorios={abaRelatorios} setAbaRelatorios={setAbaRelatorios} />
+        )}
+      </main>
 
       <nav className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-slate-900 border-t border-slate-800 flex shadow-[0_-4px_20px_rgba(0,0,0,0.15)]">
         {nav.map((n) => {
@@ -965,25 +962,35 @@ function PeriodPicker({ gran, setGran, ref_, setRef, opts }) {
   );
 }
 
-/* ======================== CARD KPI ======================== */
-const KPI_ACCENT = {
-  slate: "border-l-slate-400",
-  amber: "border-l-amber-500",
-  orange: "border-l-orange-500",
-  indigo: "border-l-indigo-500",
-  emerald: "border-l-emerald-500",
-  rose: "border-l-rose-500",
+/* ======================== ESTATÍSTICAS (painel segmentado) ========================
+   Um único painel com divisórias hairline (gap-px sobre fundo cinza) em vez de uma
+   grade de cards soltos. Cada célula: ponto de cor + rótulo, número grande, detalhe. */
+const STAT_DOT = {
+  slate: "bg-slate-400",
+  amber: "bg-amber-500",
+  orange: "bg-orange-500",
+  indigo: "bg-indigo-500",
+  emerald: "bg-emerald-500",
+  rose: "bg-rose-500",
 };
 
-function Kpi({ titulo, valor, delta, cor = "orange", inverso = false, corValor = "text-slate-900" }) {
+function StatPanel({ cols = "grid-cols-2 lg:grid-cols-5", children }) {
+  return <div className={`grid ${cols} gap-px rounded-xl overflow-hidden border border-slate-200 bg-slate-200`}>{children}</div>;
+}
+
+function Kpi({ titulo, valor, delta, sub, cor = "orange", inverso = false, corValor = "text-slate-900" }) {
   const bom = inverso ? (delta ?? 0) <= 0 : (delta ?? 0) >= 0;
   return (
-    <div className={`bg-white rounded-lg border border-slate-200 border-l-4 ${KPI_ACCENT[cor] || KPI_ACCENT.orange} p-4 sm:p-5 min-w-0`}>
-      <span className={eyebrow}>{titulo}</span>
-      <div title={valor} className={`mt-2 text-lg sm:text-xl lg:text-2xl font-bold tabular-nums tracking-tight truncate ${corValor}`}>{valor}</div>
+    <div className="bg-white p-4 sm:p-5 min-w-0">
+      <div className="flex items-center min-w-0">
+        <span className={`w-1.5 h-1.5 rounded-full shrink-0 mr-2 ${STAT_DOT[cor] || STAT_DOT.orange}`} />
+        <span className={`${eyebrow} truncate`}>{titulo}</span>
+      </div>
+      <div title={valor} className={`mt-2 text-lg sm:text-xl lg:text-[26px] leading-tight font-bold tabular-nums tracking-tight truncate ${corValor}`}>{valor}</div>
+      {sub && <div className="text-xs text-slate-500 mt-1">{sub}</div>}
       {delta != null && isFinite(delta) && (
-        <div className={`mt-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${bom ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}`}>
-          {bom ? <TrendingUp size={12} /> : <TrendingDown size={12} />} {pct(Math.abs(delta))}
+        <div className={`mt-2 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${bom ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}`}>
+          {bom ? <TrendingUp size={12} className="mr-1" /> : <TrendingDown size={12} className="mr-1" />} {pct(Math.abs(delta))}
         </div>
       )}
     </div>
@@ -1212,13 +1219,13 @@ function Dashboard({ db, update, cambById, lancs, totais, totaisPrev, gran, ref_
         {custom && <button onClick={() => { setDtDe(""); setDtAte(""); }} className="text-xs text-slate-400 hover:text-rose-500 transition-colors">limpar</button>}
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 md:gap-5">
-        <Kpi titulo="Resultado Bruto" valor={money(totaisEf.bruto)} delta={delta(totaisEf.bruto, totaisPrevEf.bruto)} icon={Coins} cor="slate" corValor={totaisEf.bruto >= 0 ? "text-emerald-600" : "text-rose-600"} />
-        <Kpi titulo="Comissões" valor={money(totaisEf.comissao)} delta={delta(totaisEf.comissao, totaisPrevEf.comissao)} icon={Percent} cor="amber" inverso corValor={totaisEf.comissao >= 0 ? "text-emerald-600" : "text-rose-600"} />
-        <Kpi titulo="Gastos" valor={money(gastosPeriodo)} delta={delta(gastosPeriodo, gastosPrev)} icon={DollarSign} cor="amber" inverso corValor={gastosPeriodo >= 0 ? "text-emerald-600" : "text-rose-600"} />
-        <Kpi titulo="Líquido Casa" valor={money(liquidoCasa)} delta={delta(liquidoCasa, liquidoCasaPrev)} icon={Wallet} cor={liquidoCasa >= 0 ? "emerald" : "rose"} corValor={liquidoCasa >= 0 ? "text-emerald-600" : "text-rose-600"} />
-        <Kpi titulo="Cambistas Ativos" valor={`${cambistasAtivos}`} icon={Users} cor="indigo" />
-      </div>
+      <StatPanel cols="grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        <Kpi titulo="Resultado Bruto" valor={money(totaisEf.bruto)} delta={delta(totaisEf.bruto, totaisPrevEf.bruto)} cor="slate" corValor={totaisEf.bruto >= 0 ? "text-emerald-600" : "text-rose-600"} />
+        <Kpi titulo="Comissões" valor={money(totaisEf.comissao)} delta={delta(totaisEf.comissao, totaisPrevEf.comissao)} cor="amber" inverso corValor={totaisEf.comissao >= 0 ? "text-emerald-600" : "text-rose-600"} />
+        <Kpi titulo="Gastos" valor={money(gastosPeriodo)} delta={delta(gastosPeriodo, gastosPrev)} cor="amber" inverso corValor={gastosPeriodo >= 0 ? "text-emerald-600" : "text-rose-600"} />
+        <Kpi titulo="Líquido Casa" valor={money(liquidoCasa)} delta={delta(liquidoCasa, liquidoCasaPrev)} cor={liquidoCasa >= 0 ? "emerald" : "rose"} corValor={liquidoCasa >= 0 ? "text-emerald-600" : "text-rose-600"} />
+        <Kpi titulo="Cambistas Ativos" valor={`${cambistasAtivos}`} cor="indigo" />
+      </StatPanel>
 
       {metaPeriodo != null && (
         <div className={cardBox}>
@@ -1421,7 +1428,8 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range, gerarRelatorio 
             className="inline-flex items-center gap-2 text-sm border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 rounded-lg px-3 py-2 transition-colors duration-150 disabled:opacity-50">
             {importando ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />} {importando ? "Importando" : "Importar Planilha"}
           </button>
-          <button onClick={() => exportarExcel({ db })}
+          <button onClick={() => { exportarExcel({ db, incluirGastos: false }); toast("Planilha de fechamento gerada (sem gastos).", "success"); }}
+            title="Planilha com Lançamentos, Cambistas e Pagamentos — sem a aba de Gastos"
             className="inline-flex items-center gap-2 text-sm border border-orange-200 bg-orange-50 hover:bg-orange-100 text-orange-700 rounded-lg px-3 py-2 transition-colors duration-150">
             <FileSpreadsheet size={15} /> Exportar Planilha
           </button>
@@ -1433,23 +1441,11 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range, gerarRelatorio 
       </div>
 
       {linhas.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-5">
-          <div className="rounded-lg border border-slate-200 border-l-4 border-l-emerald-500 bg-white p-5">
-            <span className={eyebrow}>Total a Receber</span>
-            <div className="text-2xl md:text-[28px] font-bold tabular-nums tracking-tight text-emerald-700 mt-2">{brl(linhas.reduce((a, r) => a + Math.max(0, r.receber), 0))}</div>
-            <div className="text-xs text-slate-500 mt-1.5">cambistas para cobrar</div>
-          </div>
-          <div className="rounded-lg border border-slate-200 border-l-4 border-l-slate-400 bg-white p-5">
-            <span className={eyebrow}>Total Recebido</span>
-            <div className="text-2xl md:text-[28px] font-bold tabular-nums tracking-tight text-slate-900 mt-2">{brl(linhas.reduce((a, r) => a + r.pago, 0))}</div>
-            <div className="text-xs text-slate-500 mt-1.5">já quitado no período</div>
-          </div>
-          <div className="rounded-lg border border-slate-200 border-l-4 border-l-rose-500 bg-white p-5">
-            <span className={eyebrow}>Taxa de Inadimplência</span>
-            <div className="text-2xl md:text-[28px] font-bold tabular-nums tracking-tight text-rose-700 mt-2">{linhas.length > 0 ? ((linhas.filter((r) => r.receber > 0.01).length / linhas.length) * 100).toFixed(1) : "0"}%</div>
-            <div className="text-xs text-slate-500 mt-1.5">{linhas.filter((r) => r.receber > 0.01).length} de {linhas.length} cambistas</div>
-          </div>
-        </div>
+        <StatPanel cols="grid-cols-1 sm:grid-cols-3">
+          <Kpi titulo="Total a Receber" valor={brl(linhas.reduce((a, r) => a + Math.max(0, r.receber), 0))} cor="emerald" corValor="text-emerald-700" sub="cambistas para cobrar" />
+          <Kpi titulo="Total Recebido" valor={brl(linhas.reduce((a, r) => a + r.pago, 0))} cor="slate" sub="já quitado no período" />
+          <Kpi titulo="Taxa de Inadimplência" valor={`${linhas.length > 0 ? ((linhas.filter((r) => r.receber > 0.01).length / linhas.length) * 100).toFixed(1) : "0"}%`} cor="rose" corValor="text-rose-700" sub={`${linhas.filter((r) => r.receber > 0.01).length} de ${linhas.length} cambistas`} />
+        </StatPanel>
       )}
 
       <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
@@ -1675,8 +1671,13 @@ function ModalLancamento({ dados, onClose, onSave }) {
   );
 }
 
-function MiniKpi({ rotulo, v, cor = "text-slate-900" }) {
-  return <div className="bg-slate-50 rounded-lg p-3 min-w-0"><div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{rotulo}</div><div className={`text-lg font-bold tabular-nums truncate ${cor}`}>{v}</div></div>;
+function MiniKpi({ rotulo, v, cor = "text-slate-900", dot = "bg-slate-400" }) {
+  return (
+    <div className="bg-white p-3 min-w-0">
+      <div className="flex items-center min-w-0"><span className={`w-1.5 h-1.5 rounded-full shrink-0 mr-2 ${dot}`} /><span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 truncate">{rotulo}</span></div>
+      <div className={`text-lg font-bold tabular-nums truncate mt-1 ${cor}`}>{v}</div>
+    </div>
+  );
 }
 
 function ModalDetalheCambista({ cambista, lancamentos, pagamentos, onClose }) {
@@ -1738,11 +1739,11 @@ function ModalDetalheCambista({ cambista, lancamentos, pagamentos, onClose }) {
             {custom && <button onClick={() => { setDtDe(""); setDtAte(""); }} className="text-xs text-slate-400 hover:text-rose-500 transition-colors">limpar</button>}
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <MiniKpi rotulo="Bruto" v={brl(ag.bruto)} />
-            <MiniKpi rotulo="Comissão" v={brl(ag.comissao)} cor="text-slate-900" />
-            <MiniKpi rotulo="Líquido" v={brl(ag.receber)} cor={ag.receber >= 0 ? "text-emerald-600" : "text-rose-600"} />
-            <MiniKpi rotulo="Saldo Pendente" v={brl(Math.max(0, saldo))} cor={saldo > 0.01 ? "text-amber-600" : "text-emerald-600"} />
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-px rounded-xl overflow-hidden border border-slate-200 bg-slate-200">
+            <MiniKpi rotulo="Bruto" v={brl(ag.bruto)} dot="bg-slate-400" />
+            <MiniKpi rotulo="Comissão" v={brl(ag.comissao)} cor="text-slate-900" dot="bg-amber-500" />
+            <MiniKpi rotulo="Líquido" v={brl(ag.receber)} cor={ag.receber >= 0 ? "text-emerald-600" : "text-rose-600"} dot={ag.receber >= 0 ? "bg-emerald-500" : "bg-rose-500"} />
+            <MiniKpi rotulo="Saldo Pendente" v={brl(Math.max(0, saldo))} cor={saldo > 0.01 ? "text-amber-600" : "text-emerald-600"} dot={saldo > 0.01 ? "bg-amber-500" : "bg-emerald-500"} />
           </div>
 
           <div className={cardBox}>
@@ -1917,11 +1918,9 @@ function GastosControl({ db, update, gran, ref_, range }) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-5">
-        <div className="rounded-lg border border-slate-200 border-l-4 border-l-amber-500 bg-white p-5">
-          <span className={eyebrow}>Total Gasto</span>
-          <div className="text-2xl md:text-[28px] font-bold text-slate-900 tabular-nums tracking-tight mt-2">{brl(dados_agregados.total)}</div>
-          <div className="text-xs text-slate-500 mt-1.5">{custom ? `${fmtData(dtDe)} a ${fmtData(dtAte)}` : rotuloPeriodo(gran, ref_)}</div>
-        </div>
+        <StatPanel cols="grid-cols-1">
+          <Kpi titulo="Total Gasto" valor={brl(dados_agregados.total)} cor="amber" sub={custom ? `${fmtData(dtDe)} a ${fmtData(dtAte)}` : rotuloPeriodo(gran, ref_)} />
+        </StatPanel>
 
         <div className={`${cardBox} lg:col-span-2`}>
           <div className={titSec}>Gasto por Categoria</div>
@@ -2455,18 +2454,18 @@ function AuditoriaCambistas({ db }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-3 mt-4">
-          <div className="bg-slate-50 rounded-lg p-3">
-            <div className={eyebrow}>Cambistas</div>
-            <div className="text-2xl font-bold text-slate-900 tabular-nums mt-1">{cambistasAtivos.length}</div>
+        <div className="mt-4 grid grid-cols-3 gap-px rounded-xl overflow-hidden border border-slate-200 bg-slate-200">
+          <div className="bg-white p-3 sm:p-4">
+            <div className="flex items-center min-w-0"><span className="w-1.5 h-1.5 rounded-full shrink-0 mr-2 bg-indigo-500" /><span className={`${eyebrow} truncate`}>Cambistas</span></div>
+            <div className="text-2xl font-bold text-slate-900 tabular-nums mt-1.5">{cambistasAtivos.length}</div>
           </div>
-          <div className="bg-slate-50 rounded-lg p-3">
-            <div className={eyebrow}>Semanas</div>
-            <div className="text-2xl font-bold text-slate-900 tabular-nums mt-1">{totalSemanas}</div>
+          <div className="bg-white p-3 sm:p-4">
+            <div className="flex items-center min-w-0"><span className="w-1.5 h-1.5 rounded-full shrink-0 mr-2 bg-slate-400" /><span className={`${eyebrow} truncate`}>Semanas</span></div>
+            <div className="text-2xl font-bold text-slate-900 tabular-nums mt-1.5">{totalSemanas}</div>
           </div>
-          <div className={`rounded-lg p-3 ${alertasPreview > 0 ? "bg-rose-600" : "bg-slate-50"}`}>
-            <div className={`text-[11px] font-semibold uppercase tracking-wider ${alertasPreview > 0 ? "text-rose-100" : "text-slate-500"}`}>Alertas</div>
-            <div className={`text-2xl font-bold tabular-nums mt-1 ${alertasPreview > 0 ? "text-white" : "text-slate-900"}`}>{alertasPreview}</div>
+          <div className={`p-3 sm:p-4 ${alertasPreview > 0 ? "bg-rose-600" : "bg-white"}`}>
+            <div className="flex items-center min-w-0"><span className={`w-1.5 h-1.5 rounded-full shrink-0 mr-2 ${alertasPreview > 0 ? "bg-white" : "bg-rose-500"}`} /><span className={`text-[11px] font-semibold uppercase tracking-wider truncate ${alertasPreview > 0 ? "text-rose-100" : "text-slate-500"}`}>Alertas</span></div>
+            <div className={`text-2xl font-bold tabular-nums mt-1.5 ${alertasPreview > 0 ? "text-white" : "text-slate-900"}`}>{alertasPreview}</div>
           </div>
         </div>
 
@@ -2522,18 +2521,18 @@ function AuditoriaGastos({ db }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-3 mt-4">
-          <div className="bg-slate-50 rounded-lg p-3">
-            <div className={eyebrow}>Total Gasto</div>
-            <div className="text-2xl font-bold text-slate-900 tabular-nums mt-1">{brl(totalGasto)}</div>
+        <div className="mt-4 grid grid-cols-3 gap-px rounded-xl overflow-hidden border border-slate-200 bg-slate-200">
+          <div className="bg-white p-3 sm:p-4">
+            <div className="flex items-center min-w-0"><span className="w-1.5 h-1.5 rounded-full shrink-0 mr-2 bg-amber-500" /><span className={`${eyebrow} truncate`}>Total Gasto</span></div>
+            <div className="text-2xl font-bold text-slate-900 tabular-nums mt-1.5 truncate">{brl(totalGasto)}</div>
           </div>
-          <div className="bg-slate-50 rounded-lg p-3">
-            <div className={eyebrow}>Meses</div>
-            <div className="text-2xl font-bold text-slate-900 tabular-nums mt-1">{meses.length}</div>
+          <div className="bg-white p-3 sm:p-4">
+            <div className="flex items-center min-w-0"><span className="w-1.5 h-1.5 rounded-full shrink-0 mr-2 bg-slate-400" /><span className={`${eyebrow} truncate`}>Meses</span></div>
+            <div className="text-2xl font-bold text-slate-900 tabular-nums mt-1.5">{meses.length}</div>
           </div>
-          <div className={`rounded-lg p-3 ${alertasCount > 0 ? "bg-rose-600" : "bg-slate-50"}`}>
-            <div className={`text-[11px] font-semibold uppercase tracking-wider ${alertasCount > 0 ? "text-rose-100" : "text-slate-500"}`}>Alertas</div>
-            <div className={`text-2xl font-bold tabular-nums mt-1 ${alertasCount > 0 ? "text-white" : "text-slate-900"}`}>{alertasCount}</div>
+          <div className={`p-3 sm:p-4 ${alertasCount > 0 ? "bg-rose-600" : "bg-white"}`}>
+            <div className="flex items-center min-w-0"><span className={`w-1.5 h-1.5 rounded-full shrink-0 mr-2 ${alertasCount > 0 ? "bg-white" : "bg-rose-500"}`} /><span className={`text-[11px] font-semibold uppercase tracking-wider truncate ${alertasCount > 0 ? "text-rose-100" : "text-slate-500"}`}>Alertas</span></div>
+            <div className={`text-2xl font-bold tabular-nums mt-1.5 ${alertasCount > 0 ? "text-white" : "text-slate-900"}`}>{alertasCount}</div>
           </div>
         </div>
 
