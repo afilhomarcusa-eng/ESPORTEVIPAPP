@@ -11,6 +11,7 @@ import {
   ChevronRight, Wallet, Percent, Coins, RotateCcw, Search, Circle,
   FileSpreadsheet, Target, Banknote, Clock, CheckCircle2, Trophy, Upload, Printer, Send,
   Calendar, BarChart3, Loader2, Inbox, CheckCircle, XCircle, Info, MoreVertical, Eye, EyeOff, Lock,
+  Link2, RefreshCw,
 } from "lucide-react";
 
 /* ======================== UTILITÁRIOS ======================== */
@@ -580,6 +581,8 @@ async function loadDB() {
   if (!db.pagamentos) db.pagamentos = [];
   if (!db.gastos) db.gastos = [];
   if (db.metaMensal == null) db.metaMensal = 10000;
+  if (db.planilhaUrl == null) db.planilhaUrl = "";
+  if (db.planilhaUltimaSync == null) db.planilhaUltimaSync = "";
   return db;
 }
 async function saveDB(db) { try { await window.storage.set(KEY, JSON.stringify(db)); return true; } catch (e) { return false; } }
@@ -691,6 +694,151 @@ function importarExcel(file, update, aoTerminar) {
     }
   };
   reader.readAsArrayBuffer(file);
+}
+
+/* ======================== PLANILHA ONLINE (Google Sheets) ========================
+   O site lê a planilha pelo endpoint CSV público do Google (gviz), sem servidor
+   nem chave de API. Requisito: compartilhar como "Qualquer pessoa com o link — Leitor".
+   A planilha é a fonte da verdade: sincronizar substitui cambistas, lançamentos e
+   pagamentos do site pelos dados dela (mesmo modelo de abas do arquivo exportado). */
+
+function extrairSheetId(url) {
+  const m = String(url || "").match(/\/d\/([a-zA-Z0-9-_]+)/);
+  return m ? m[1] : null;
+}
+
+// Parser CSV mínimo (RFC 4180): aspas, vírgulas e quebras de linha dentro de campos
+function csvParse(text) {
+  const rows = [];
+  let row = [], cur = "", inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQ) {
+      if (ch === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else inQ = false; }
+      else cur += ch;
+    } else if (ch === '"') inQ = true;
+    else if (ch === ",") { row.push(cur); cur = ""; }
+    else if (ch === "\n") { row.push(cur); rows.push(row); row = []; cur = ""; }
+    else if (ch !== "\r") cur += ch;
+  }
+  row.push(cur);
+  if (row.length > 1 || row[0] !== "") rows.push(row);
+  return rows;
+}
+
+function linhasParaObjetos(rows) {
+  if (rows.length < 1) return [];
+  const header = rows[0].map((h) => String(h).trim());
+  return rows.slice(1).map((r) => Object.fromEntries(header.map((h, i) => [h, r[i] ?? ""])));
+}
+
+// Aceita "R$ 1.010,00", "1010", "-120,5", "1,010.00", "(50)"
+function parseNumeroSheet(v) {
+  let s = String(v ?? "").trim().replace(/R\$\s?/g, "").replace(/\s/g, "");
+  if (!s) return 0;
+  const neg = s.startsWith("-") || s.startsWith("(");
+  s = s.replace(/[()]/g, "").replace(/^-/, "");
+  if (s.includes(",") && s.includes(".")) {
+    if (s.lastIndexOf(",") > s.lastIndexOf(".")) s = s.replace(/\./g, "").replace(",", ".");
+    else s = s.replace(/,/g, "");
+  } else if (s.includes(",")) s = s.replace(",", ".");
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : (neg ? -n : n);
+}
+
+// Aceita "10%", "10", "0,1" — sempre devolve fração (0.1) ou null
+function parsePctSheet(v) {
+  const s = String(v ?? "").trim();
+  if (!s) return null;
+  let n = parseNumeroSheet(s.replace("%", ""));
+  if (s.includes("%") || n > 1) n = n / 100;
+  return isNaN(n) ? null : n;
+}
+
+// Aceita "dd/mm/aaaa", "dd/mm/aa" e "aaaa-mm-dd"
+function parseDataSheet(v) {
+  const s = String(v ?? "").trim();
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+  if (m) {
+    const ano = m[3].length === 2 ? `20${m[3]}` : m[3];
+    return `${ano}-${pad(+m[2])}-${pad(+m[1])}`;
+  }
+  return null;
+}
+
+async function buscarAbaCsv(sheetId, nomeAba) {
+  const res = await fetch(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(nomeAba)}`);
+  if (!res.ok) throw new Error(`Não consegui acessar a aba "${nomeAba}" (HTTP ${res.status}).`);
+  const text = await res.text();
+  if (text.trim().startsWith("<")) throw new Error("Sem acesso à planilha. No Google Sheets, use Compartilhar → \"Qualquer pessoa com o link\" → Leitor.");
+  return linhasParaObjetos(csvParse(text));
+}
+
+async function sincronizarPlanilha(url, db, update) {
+  const sheetId = extrairSheetId(url);
+  if (!sheetId) throw new Error("Link inválido. Cole o link de compartilhamento do Google Sheets (docs.google.com/spreadsheets/d/...).");
+
+  const cRows = await buscarAbaCsv(sheetId, "Cambistas");
+  let lRows;
+  try { lRows = await buscarAbaCsv(sheetId, "Lancamentos"); }
+  catch { lRows = await buscarAbaCsv(sheetId, "Lançamentos"); }
+  let pRows = null;
+  try { pRows = await buscarAbaCsv(sheetId, "Pagamentos"); } catch { /* aba opcional */ }
+
+  if (!cRows.length || !("Nome" in cRows[0])) throw new Error('A aba "Cambistas" precisa das colunas Nome, Contato, Comissao Padrao e Ativo (mesmo modelo do arquivo exportado).');
+  if (!lRows.length || !("Cambista" in lRows[0])) throw new Error('A aba "Lancamentos" precisa das colunas Data, Cambista, Positivo (R$) e Percentual.');
+
+  // Monta tudo fora do updater do React (o updater roda depois, de forma assíncrona)
+  const idAntigoPorNome = Object.fromEntries((db.cambistas || []).map((c) => [c.nome.trim().toLowerCase(), c.id]));
+  const idPorNome = {};
+  const cambistas = cRows.filter((r) => String(r["Nome"]).trim()).map((r) => {
+    const nome = String(r["Nome"]).trim();
+    const id = idAntigoPorNome[nome.toLowerCase()] || uid();
+    idPorNome[nome.toLowerCase()] = id;
+    const ativoTxt = String(r["Ativo"] || "Sim").trim().toLowerCase();
+    return {
+      id, nome,
+      contato: String(r["Contato"] || "").trim(),
+      comissaoPadrao: parsePctSheet(r["Comissao Padrao"] ?? r["Comissão Padrão"]) ?? 0,
+      ativo: ativoTxt !== "nao" && ativoTxt !== "não",
+      criadoEm: iso(new Date()),
+    };
+  });
+  const lancamentos = lRows.map((r) => {
+    const nome = String(r["Cambista"] || "").trim().toLowerCase();
+    const data = parseDataSheet(r["Data"]);
+    if (!idPorNome[nome] || !data) return null;
+    return {
+      id: uid(),
+      cambistaId: idPorNome[nome],
+      data,
+      positivo: parseNumeroSheet(r["Positivo (R$)"] ?? r["Positivo"]),
+      movimentacao: null,
+      pct: parsePctSheet(r["Percentual"]),
+      obs: "",
+    };
+  }).filter(Boolean);
+  const idsValidos = new Set(cambistas.map((c) => c.id));
+  const pagamentos = pRows
+    ? pRows.map((r) => {
+        const nome = String(r["Cambista"] || "").trim().toLowerCase();
+        const data = parseDataSheet(r["Data"]);
+        if (!idPorNome[nome] || !data) return null;
+        return { id: uid(), cambistaId: idPorNome[nome], data, valor: parseNumeroSheet(r["Valor (R$)"] ?? r["Valor"]), obs: String(r["Obs"] || "") };
+      }).filter(Boolean)
+    : (db.pagamentos || []).filter((p) => idsValidos.has(p.cambistaId));
+
+  const agora = new Date().toLocaleString("pt-BR");
+  update((d) => {
+    d.cambistas = cambistas;
+    d.lancamentos = lancamentos;
+    d.pagamentos = pagamentos;
+    d.planilhaUrl = url;
+    d.planilhaUltimaSync = agora;
+  });
+  return { cambistas: cambistas.length, lancamentos: lancamentos.length, pagamentos: pagamentos.length };
 }
 
 /* ======================== TELA DE ACESSO (senha) ======================== */
@@ -1398,6 +1546,22 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range, gerarRelatorio 
     });
   };
 
+  const [planilhaModal, setPlanilhaModal] = useState(false);
+  const [sincronizando, setSincronizando] = useState(false);
+  const sincronizar = async (url) => {
+    if (!confirm("Isso vai substituir cambistas, lançamentos e pagamentos do site pelos dados da planilha online. Continuar?")) return;
+    setSincronizando(true);
+    try {
+      const r = await sincronizarPlanilha(url, db, update);
+      toast(`Sincronizado: ${r.cambistas} cambistas, ${r.lancamentos} lançamentos, ${r.pagamentos} pagamentos.`, "success");
+      setPlanilhaModal(false);
+    } catch (err) {
+      toast(err.message || "Erro ao sincronizar com a planilha.", "error");
+    } finally {
+      setSincronizando(false);
+    }
+  };
+
   const setPeriodDates = (gran) => {
     const [dtInicio, dtFim] = isoDatesForPeriod(gran, new Date());
     setDtDe(dtInicio);
@@ -1432,6 +1596,18 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range, gerarRelatorio 
             title="Planilha com Lançamentos, Cambistas e Pagamentos — sem a aba de Gastos"
             className="inline-flex items-center gap-2 text-sm border border-orange-200 bg-orange-50 hover:bg-orange-100 text-orange-700 rounded-lg px-3 py-2 transition-colors duration-150">
             <FileSpreadsheet size={15} /> Exportar Planilha
+          </button>
+          {db.planilhaUrl ? (
+            <button onClick={() => sincronizar(db.planilhaUrl)} disabled={sincronizando}
+              title={`Puxar dados da planilha online${db.planilhaUltimaSync ? ` — última sync: ${db.planilhaUltimaSync}` : ""}`}
+              className="inline-flex items-center gap-2 text-sm border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg px-3 py-2 transition-colors duration-150 disabled:opacity-50">
+              <RefreshCw size={15} className={sincronizando ? "animate-spin" : ""} /> {sincronizando ? "Sincronizando..." : "Sincronizar"}
+            </button>
+          ) : null}
+          <button onClick={() => setPlanilhaModal(true)}
+            title="Conectar uma planilha do Google Sheets"
+            className="inline-flex items-center gap-2 text-sm border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 rounded-lg px-3 py-2 transition-colors duration-150">
+            <Link2 size={15} /> Planilha Online
           </button>
           <button onClick={() => setEditar({ id: null, nome: "", contato: "", comissaoPadrao: 0.1, ativo: true })}
             className="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-lg px-3 py-2 transition-colors duration-150">
@@ -1574,6 +1750,58 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range, gerarRelatorio 
         <ModalDetalheCambista cambista={detalhe} lancamentos={db.lancamentos.filter((l) => l.cambistaId === detalhe.id)}
           pagamentos={(db.pagamentos || []).filter((p) => p.cambistaId === detalhe.id)} onClose={() => setDetalhe(null)} />
       )}
+      {planilhaModal && (
+        <ModalPlanilhaOnline db={db} update={update} sincronizando={sincronizando}
+          onSincronizar={sincronizar} onClose={() => setPlanilhaModal(false)} />
+      )}
+    </div>
+  );
+}
+
+/* ======================== MODAL: PLANILHA ONLINE ======================== */
+function ModalPlanilhaOnline({ db, update, sincronizando, onSincronizar, onClose }) {
+  const [url, setUrl] = useState(db.planilhaUrl || "");
+
+  const salvarLink = () => {
+    if (url.trim() && !extrairSheetId(url)) return toast("Link inválido. Cole o link do Google Sheets (docs.google.com/spreadsheets/d/...).", "error");
+    update((d) => { d.planilhaUrl = url.trim(); });
+    toast(url.trim() ? "Link da planilha salvo." : "Link removido.", "success");
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-lg shadow-modal animate-scale-in" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+          <div className="font-semibold text-slate-900 flex items-center gap-2"><Link2 size={16} className="text-emerald-600" /> Planilha Online (Google Sheets)</div>
+          <button onClick={onClose} aria-label="Fechar" className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 transition-colors duration-150"><X size={18} /></button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div className="text-sm text-slate-600">
+            Edite os dados direto no Google Sheets e clique em <span className="font-semibold">Sincronizar</span> aqui — o site é atualizado com o que está na planilha.
+          </div>
+          <ol className="text-xs text-slate-600 space-y-2 list-decimal list-inside bg-slate-50 rounded-lg p-3">
+            <li>Clique em <span className="font-semibold">Exportar Planilha</span> nesta tela e importe o arquivo no Google Sheets (Arquivo → Importar → Fazer upload).</li>
+            <li>No Sheets: <span className="font-semibold">Compartilhar → Acesso geral: "Qualquer pessoa com o link" → Leitor</span> e copie o link.</li>
+            <li>Cole o link abaixo, salve e clique em Sincronizar sempre que editar a planilha.</li>
+          </ol>
+          <div>
+            <label className={lbl}>Link da planilha</label>
+            <input value={url} onChange={(e) => setUrl(e.target.value)} className={inp} placeholder="https://docs.google.com/spreadsheets/d/..." />
+          </div>
+          {db.planilhaUltimaSync && <div className="text-xs text-slate-500 flex items-center gap-1.5"><Clock size={12} /> Última sincronização: {db.planilhaUltimaSync}</div>}
+          <div className="text-[11px] text-amber-700 bg-amber-100 border border-amber-300 rounded-lg p-2.5">
+            A planilha vira a fonte dos dados: sincronizar <span className="font-semibold">substitui</span> cambistas, lançamentos e pagamentos do site pelos dela. As abas precisam seguir o modelo exportado (Cambistas, Lancamentos e, opcionalmente, Pagamentos).
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 px-5 py-4 border-t border-slate-100">
+          <button onClick={salvarLink} className="text-sm px-4 py-2 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors duration-150">Salvar link</button>
+          <button onClick={() => { if (!extrairSheetId(url)) return toast("Cole um link válido do Google Sheets.", "error"); update((d) => { d.planilhaUrl = url.trim(); }); onSincronizar(url.trim()); }}
+            disabled={sincronizando}
+            className="text-sm px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium transition-colors duration-150 disabled:opacity-50 inline-flex items-center gap-2">
+            <RefreshCw size={14} className={sincronizando ? "animate-spin" : ""} /> {sincronizando ? "Sincronizando..." : "Sincronizar agora"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
