@@ -781,7 +781,75 @@ async function buscarAbaCsv(sheetId, nomeAba) {
   return linhasParaObjetos(await buscarCsvLinhas(sheetId, nomeAba));
 }
 
-/* Modo "Planilha de Comissões": uma aba única com as colunas
+// Tenta uma lista de nomes de aba (variações de caixa/acento); null se nenhuma existir
+async function buscarLinhasPorNomes(sheetId, nomes) {
+  for (const nome of nomes) {
+    try {
+      const bruto = await buscarCsvLinhas(sheetId, nome);
+      if (bruto.length) return bruto;
+    } catch { /* tenta o próximo nome */ }
+  }
+  return null;
+}
+
+/* Aba GASTOS: CATEGORIA | QUEM GASTOU | DESCRIÇÃO | VALOR | DATA (opcional) */
+function montarGastosDaPlanilha(bruto) {
+  if (!bruto || !bruto.length) return null;
+  const idx = bruto.findIndex((r) => {
+    const up = r.map((c) => String(c).trim().toUpperCase());
+    return up.some((c) => c.startsWith("CATEGORIA")) && up.some((c) => c.startsWith("VALOR"));
+  });
+  if (idx === -1) return null;
+  const header = bruto[idx].map((c) => String(c).trim().toUpperCase());
+  const col = (p) => header.findIndex((h) => h.startsWith(p));
+  const iCat = col("CATEGORIA"), iVal = col("VALOR"), iDesc = col("DESCRI"), iData = col("DATA");
+  let iResp = col("QUEM"); if (iResp === -1) iResp = col("RESPONS");
+  const hoje = iso(new Date());
+  const gastos = [];
+  for (const r of bruto.slice(idx + 1)) {
+    const valBruto = String(r[iVal] ?? "").trim();
+    const valor = parseNumeroSheet(valBruto);
+    if (valBruto === "" || valor === 0) continue;
+    gastos.push({
+      id: uid(),
+      categoria: String(r[iCat] ?? "").trim() || "Outros",
+      responsavel: iResp !== -1 ? String(r[iResp] ?? "").trim() : "",
+      descricao: iDesc !== -1 ? String(r[iDesc] ?? "").trim() : "",
+      valor: Math.abs(valor),
+      data: (iData !== -1 && parseDataSheet(r[iData])) || hoje,
+    });
+  }
+  return gastos;
+}
+
+/* Aba CAMBISTAS: NOME | CONTATO | COMISSÃO PADRÃO | ATIVO — enriquece (ou cria) cambistas */
+function aplicarCambistasDaPlanilha(bruto, cambistas) {
+  if (!bruto || !bruto.length) return;
+  const idx = bruto.findIndex((r) => {
+    const up = r.map((c) => String(c).trim().toUpperCase());
+    return up.includes("NOME") && (up.some((c) => c.startsWith("CONTATO")) || up.some((c) => c.startsWith("COMISS")));
+  });
+  if (idx === -1) return;
+  const header = bruto[idx].map((c) => String(c).trim().toUpperCase());
+  const col = (p) => header.findIndex((h) => h.startsWith(p));
+  const iNome = col("NOME"), iCont = col("CONTATO"), iPct = col("COMISS"), iAtivo = col("ATIVO");
+  const porChave = Object.fromEntries(cambistas.map((c) => [c.nome.trim().toLowerCase(), c]));
+  for (const r of bruto.slice(idx + 1)) {
+    const nome = String(r[iNome] ?? "").trim();
+    if (!nome) continue;
+    let c = porChave[nome.toLowerCase()];
+    if (!c) {
+      c = { id: uid(), nome, contato: "", comissaoPadrao: 0.1, ativo: true, criadoEm: iso(new Date()) };
+      porChave[nome.toLowerCase()] = c;
+      cambistas.push(c);
+    }
+    if (iCont !== -1 && String(r[iCont] ?? "").trim()) c.contato = String(r[iCont]).trim();
+    if (iPct !== -1) { const p = parsePctSheet(r[iPct]); if (p != null) c.comissaoPadrao = p; }
+    if (iAtivo !== -1) { const a = String(r[iAtivo] ?? "").trim().toLowerCase(); if (a) c.ativo = a !== "não" && a !== "nao"; }
+  }
+}
+
+/* Modo "Planilha de Comissões": aba com as colunas
    NOME | POSITIVO | PERCENTUAL | VALOR EFETIVO | RECEBER | PAGAMENTO
    (título acima do cabeçalho é ignorado; coluna DATA é opcional).      */
 function montarDeComissoes(bruto, db) {
@@ -844,19 +912,25 @@ async function sincronizarPlanilha(url, db, update) {
   } catch { /* sem as abas do modelo completo — tenta o modo Planilha de Comissões */ }
 
   if (!cRows?.length || !("Nome" in cRows[0]) || !lRows?.length || !("Cambista" in lRows[0])) {
-    // 2) Modo Planilha de Comissões: lê a primeira aba e procura o cabeçalho
-    const bruto = await buscarCsvLinhas(sheetId, null);
+    // 2) Modo Gestão Financeira / Planilha de Comissões: procura a aba COMISSÕES
+    //    (fallback: primeira aba) e as abas opcionais CAMBISTAS e GASTOS
+    const bruto = (await buscarLinhasPorNomes(sheetId, ["COMISSÕES", "COMISSOES", "Comissões", "Comissoes"])) || (await buscarCsvLinhas(sheetId, null));
     const montado = montarDeComissoes(bruto, db);
-    if (!montado) throw new Error('A planilha está vazia ou fora do modelo. Use as colunas NOME, POSITIVO, PERCENTUAL e PAGAMENTO (Planilha de Comissões) ou as abas "Cambistas"/"Lancamentos" do arquivo exportado.');
+    if (!montado) throw new Error('A planilha está vazia ou fora do modelo. Use a aba COMISSÕES (colunas NOME, POSITIVO, PERCENTUAL, PAGAMENTO) ou as abas "Cambistas"/"Lancamentos" do arquivo exportado.');
+
+    aplicarCambistasDaPlanilha(await buscarLinhasPorNomes(sheetId, ["CAMBISTAS", "Cambistas"]), montado.cambistas);
+    const gastos = montarGastosDaPlanilha(await buscarLinhasPorNomes(sheetId, ["GASTOS", "Gastos"]));
+
     const agora = new Date().toLocaleString("pt-BR");
     update((d) => {
       d.cambistas = montado.cambistas;
       d.lancamentos = montado.lancamentos;
       d.pagamentos = montado.pagamentos;
+      if (gastos !== null) d.gastos = gastos;
       d.planilhaUrl = url;
       d.planilhaUltimaSync = agora;
     });
-    return { cambistas: montado.cambistas.length, lancamentos: montado.lancamentos.length, pagamentos: montado.pagamentos.length };
+    return { cambistas: montado.cambistas.length, lancamentos: montado.lancamentos.length, pagamentos: montado.pagamentos.length, gastos: gastos !== null ? gastos.length : null };
   }
 
   try { pRows = await buscarAbaCsv(sheetId, "Pagamentos"); } catch { /* aba opcional */ }
@@ -1624,7 +1698,7 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range, gerarRelatorio 
     setSincronizando(true);
     try {
       const r = await sincronizarPlanilha(url, db, update);
-      toast(`Sincronizado: ${r.cambistas} cambistas, ${r.lancamentos} lançamentos, ${r.pagamentos} pagamentos.`, "success");
+      toast(`Sincronizado: ${r.cambistas} cambistas, ${r.lancamentos} lançamentos, ${r.pagamentos} pagamentos${r.gastos != null ? `, ${r.gastos} gastos` : ""}.`, "success");
       setPlanilhaModal(false);
     } catch (err) {
       toast(err.message || "Erro ao sincronizar com a planilha.", "error");
@@ -1861,7 +1935,7 @@ function ModalPlanilhaOnline({ db, update, sincronizando, onSincronizar, onClose
           </div>
           {db.planilhaUltimaSync && <div className="text-xs text-slate-500 flex items-center gap-1.5"><Clock size={12} /> Última sincronização: {db.planilhaUltimaSync}</div>}
           <div className="text-[11px] text-amber-700 bg-amber-100 border border-amber-300 rounded-lg p-2.5">
-            A planilha vira a fonte dos dados: sincronizar <span className="font-semibold">substitui</span> cambistas, lançamentos e pagamentos do site pelos dela. Sem coluna DATA, os lançamentos entram com a data do dia da sincronização.
+            A planilha vira a fonte dos dados: sincronizar <span className="font-semibold">substitui</span> cambistas, lançamentos, pagamentos e gastos (se houver aba GASTOS) do site pelos dela. Sem coluna DATA, os registros entram com a data do dia da sincronização.
           </div>
         </div>
         <div className="flex justify-end gap-2 px-5 py-4 border-t border-slate-100">

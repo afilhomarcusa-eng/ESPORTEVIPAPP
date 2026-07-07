@@ -35,7 +35,10 @@
       "Bash(curl -sL -w \"\\\\nHTTP %{http_code}, %{size_download} bytes\\\\n\" \"https://docs.google.com/spreadsheets/d/1HqBbgUXiJo3dyPl-xuCvPsiOvTTysDTwzB1HOTTwbhY/export?format=csv\")",
       "Bash(curl -s -A \"Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\)\" -L \"https://docs.google.com/spreadsheets/d/1HqBbgUXiJo3dyPl-xuCvPsiOvTTysDTwzB1HOTTwbhY/export?format=csv\" -o /tmp/sheet2.csv)",
       "Bash(echo \"exit=$?\")",
-      "Bash(node \"C:\\\\Users\\\\osnav\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-osnav-OneDrive-Desktop-esportevip\\\\3dd64716-d988-4666-a0d3-503ab8aed8d6\\\\scratchpad\\\\gera-planilha-comissoes.mjs\")"
+      "Bash(node \"C:\\\\Users\\\\osnav\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-osnav-OneDrive-Desktop-esportevip\\\\3dd64716-d988-4666-a0d3-503ab8aed8d6\\\\scratchpad\\\\gera-planilha-comissoes.mjs\")",
+      "Bash(node \"C:\\\\Users\\\\osnav\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-osnav-OneDrive-Desktop-esportevip\\\\3dd64716-d988-4666-a0d3-503ab8aed8d6\\\\scratchpad\\\\gera-gestao-financeira.mjs\")",
+      "Bash(rm \"C:/Users/osnav/OneDrive/Desktop/PLANILHA DE COMISSÕES.xlsx\")",
+      "Read(//c/Users/osnav/OneDrive/Desktop/**)"
     ]
   }
 }
