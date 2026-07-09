@@ -573,11 +573,37 @@ function seed() {
 }
 
 /* ======================== ARMAZENAMENTO ======================== */
+// ATENÇÃO: o código antigo usava window.storage.get/set — esse objeto nunca existiu,
+// então NADA era salvo (cada reload voltava ao seed). Agora: localStorage + Supabase.
 const KEY = "esportevipapp:v1";
-async function loadDB() {
-  let db = null;
-  try { const r = await window.storage.get(KEY); if (r && r.value) db = JSON.parse(r.value); } catch (e) {}
-  if (!db) { db = seed(); try { await window.storage.set(KEY, JSON.stringify(db)); } catch (e) {} }
+
+/* ---- Supabase (nuvem) ---- */
+const SUPABASE_URL = "https://okmzphtwngmouroxopyv.supabase.co";
+const SUPABASE_ANON_KEY = ""; // cole aqui a chave "anon public" (Dashboard → Settings → API Keys)
+const nuvemConfigurada = () => Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+const cabecalhosSupabase = () => ({
+  apikey: SUPABASE_ANON_KEY,
+  Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+  "Content-Type": "application/json",
+});
+
+async function nuvemCarregar() {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/app_state?id=eq.1&select=dados`, { headers: cabecalhosSupabase() });
+  if (!res.ok) throw new Error(`Supabase HTTP ${res.status}`);
+  const linhas = await res.json();
+  return linhas.length ? linhas[0].dados : null;
+}
+
+async function nuvemSalvar(db) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/app_state`, {
+    method: "POST",
+    headers: { ...cabecalhosSupabase(), Prefer: "resolution=merge-duplicates" },
+    body: JSON.stringify({ id: 1, dados: db, atualizado_em: new Date().toISOString() }),
+  });
+  if (!res.ok) throw new Error(`Supabase HTTP ${res.status}`);
+}
+
+function normalizarDB(db) {
   if (!db.pagamentos) db.pagamentos = [];
   if (!db.gastos) db.gastos = [];
   if (db.metaMensal == null) db.metaMensal = 10000;
@@ -585,7 +611,39 @@ async function loadDB() {
   if (db.planilhaUltimaSync == null) db.planilhaUltimaSync = "";
   return db;
 }
-async function saveDB(db) { try { await window.storage.set(KEY, JSON.stringify(db)); return true; } catch (e) { return false; } }
+
+function localCarregar() {
+  try { const r = localStorage.getItem(KEY); if (r) return JSON.parse(r); } catch { /* corrompido/indisponível */ }
+  return null;
+}
+function localSalvar(db) {
+  try { localStorage.setItem(KEY, JSON.stringify(db)); return true; } catch { return false; }
+}
+
+async function loadDB() {
+  let db = localCarregar();
+  if (nuvemConfigurada()) {
+    try {
+      const nuvem = await nuvemCarregar();
+      if (nuvem) db = nuvem; // a nuvem é a fonte da verdade
+      else if (db) await nuvemSalvar(db); // primeira vez: sobe o que existe localmente
+    } catch (e) { console.warn("Nuvem indisponível, usando dados locais:", e.message); }
+  }
+  if (!db) db = seed();
+  db = normalizarDB(db);
+  localSalvar(db);
+  return db;
+}
+
+// Retorna { localOk, nuvemOk } — nuvemOk é null quando a nuvem não está configurada
+async function saveDB(db) {
+  const localOk = localSalvar(db);
+  let nuvemOk = null;
+  if (nuvemConfigurada()) {
+    try { await nuvemSalvar(db); nuvemOk = true; } catch { nuvemOk = false; }
+  }
+  return { localOk, nuvemOk };
+}
 
 /* ======================== EXPORTAÇÃO EXCEL ======================== */
 function exportarExcel({ db, incluirGastos = true }) {
@@ -1060,6 +1118,7 @@ export default function App() {
   const [relatorioPre, setRelatorioPre] = useState(null);
   const [abaRelatorios, setAbaRelatorios] = useState("semanal");
   const [salvando, setSalvando] = useState(false);
+  const [nuvemErro, setNuvemErro] = useState(false);
   const [showInativeModal, setShowInativeModal] = useState(false);
   const [inativos, setInativos] = useState([]);
   const primeira = useRef(true);
@@ -1071,7 +1130,7 @@ export default function App() {
     setInativos(inativosAtual);
     if (primeira.current) { primeira.current = false; if (inativosAtual.length > 0) setShowInativeModal(true); return; }
     setSalvando(true);
-    saveDB(db).then(() => setTimeout(() => setSalvando(false), 400));
+    saveDB(db).then((r) => { setNuvemErro(r.nuvemOk === false); setTimeout(() => setSalvando(false), 400); });
   }, [db]);
 
   const cambById = useMemo(() => Object.fromEntries((db?.cambistas || []).map((c) => [c.id, c])), [db]);
@@ -1133,9 +1192,9 @@ export default function App() {
               })}
             </nav>
             <div className="ml-auto lg:ml-0 flex items-center">
-              <span className="hidden sm:flex items-center text-[11px] text-slate-500 mr-4">
-                <Circle size={7} className={`mr-1.5 ${salvando ? "text-amber-400 fill-amber-400" : "text-emerald-400 fill-emerald-400"}`} />
-                {salvando ? "Salvando..." : "Tudo salvo"}
+              <span className="hidden sm:flex items-center text-[11px] text-slate-500 mr-4" title={nuvemErro ? "Os dados estão salvos neste navegador, mas a nuvem não respondeu" : undefined}>
+                <Circle size={7} className={`mr-1.5 ${salvando ? "text-amber-400 fill-amber-400" : nuvemErro ? "text-rose-400 fill-rose-400" : "text-emerald-400 fill-emerald-400"}`} />
+                {salvando ? "Salvando..." : nuvemErro ? "Sem conexão com a nuvem" : nuvemConfigurada() ? "Salvo na nuvem" : "Tudo salvo"}
               </span>
               {db.exemplo && (
                 <button onClick={() => { if (confirm("Zerar todos os dados de exemplo e começar do zero?")) setDb({ cambistas: [], lancamentos: [], pagamentos: [], gastos: [], metaMensal: 10000, exemplo: false, version: 4 }); }}

@@ -49,7 +49,9 @@
       "Bash(tar -tf \"C:/Users/osnav/OneDrive/Desktop/GESTÃO FINANCEIRA - ESPORTEVIPAPP.xlsx\")",
       "Bash(cp \"/c/Users/osnav/OneDrive/Desktop/GESTÃO FINANCEIRA - ESPORTEVIPAPP.xlsx\" /tmp/g.xlsx)",
       "Bash(tar -xOf g.xlsx xl/styles.xml)",
-      "PowerShell(Copy-Item \"C:\\\\Users\\\\osnav\\\\OneDrive\\\\Desktop\\\\GESTÃO FINANCEIRA - ESPORTEVIPAPP.xlsx\" \"$env:TEMP\\\\g.zip\" -Force; $dir = \"$env:TEMP\\\\gxlsx\"; if \\(Test-Path $dir\\) { Remove-Item $dir -Recurse -Force }; Expand-Archive \"$env:TEMP\\\\g.zip\" $dir -Force; $styles = Get-Content \"$dir\\\\xl\\\\styles.xml\" -Raw; \"styles.xml bytes: $\\($styles.Length\\)\"; foreach \\($cor in @\\(\"2E86AB\",\"F97316\",\"0F172A\",\"E8F3F9\"\\)\\) { $n = \\([regex]::Matches\\($styles, $cor\\)\\).Count; \"cor $cor : $n ocorrencias\" })"
+      "PowerShell(Copy-Item \"C:\\\\Users\\\\osnav\\\\OneDrive\\\\Desktop\\\\GESTÃO FINANCEIRA - ESPORTEVIPAPP.xlsx\" \"$env:TEMP\\\\g.zip\" -Force; $dir = \"$env:TEMP\\\\gxlsx\"; if \\(Test-Path $dir\\) { Remove-Item $dir -Recurse -Force }; Expand-Archive \"$env:TEMP\\\\g.zip\" $dir -Force; $styles = Get-Content \"$dir\\\\xl\\\\styles.xml\" -Raw; \"styles.xml bytes: $\\($styles.Length\\)\"; foreach \\($cor in @\\(\"2E86AB\",\"F97316\",\"0F172A\",\"E8F3F9\"\\)\\) { $n = \\([regex]::Matches\\($styles, $cor\\)\\).Count; \"cor $cor : $n ocorrencias\" })",
+      "PowerShell($portas = Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $_.LocalPort -ge 5173 -and $_.LocalPort -le 5185 } | Select-Object LocalPort, OwningProcess -Unique; $portas | ForEach-Object { \"porta $\\($_.LocalPort\\) -> PID $\\($_.OwningProcess\\)\" }; $pids = $portas | Select-Object -ExpandProperty OwningProcess -Unique; foreach \\($p in $pids\\) { try { Stop-Process -Id $p -Force -Confirm:$false; \"PID $p finalizado\" } catch { \"PID $p ja finalizado\" } })",
+      "Bash(node -e \"fetch\\('https://okmzphtwngmouroxopyv.supabase.co/rest/v1/app_state'\\).then\\(r => r.text\\(\\).then\\(t => console.log\\('HTTP', r.status, '-', t.slice\\(0, 120\\)\\)\\)\\)\")"
     ]
   }
 }
