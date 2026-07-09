@@ -579,7 +579,7 @@ const KEY = "esportevipapp:v1";
 
 /* ---- Supabase (nuvem) ---- */
 const SUPABASE_URL = "https://okmzphtwngmouroxopyv.supabase.co";
-const SUPABASE_ANON_KEY = ""; // cole aqui a chave "anon public" (Dashboard → Settings → API Keys)
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9rbXpwaHR3bmdtb3Vyb3hvcHl2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1Nzg5NjAsImV4cCI6MjA5OTE1NDk2MH0.ipTYGN3H8yqx8JaCo4xWa4wEYM5hIk3Ub_70tkRTEcY"; // chave "anon public" (pública por design)
 const nuvemConfigurada = () => Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 const cabecalhosSupabase = () => ({
   apikey: SUPABASE_ANON_KEY,

@@ -51,7 +51,8 @@
       "Bash(tar -xOf g.xlsx xl/styles.xml)",
       "PowerShell(Copy-Item \"C:\\\\Users\\\\osnav\\\\OneDrive\\\\Desktop\\\\GESTÃO FINANCEIRA - ESPORTEVIPAPP.xlsx\" \"$env:TEMP\\\\g.zip\" -Force; $dir = \"$env:TEMP\\\\gxlsx\"; if \\(Test-Path $dir\\) { Remove-Item $dir -Recurse -Force }; Expand-Archive \"$env:TEMP\\\\g.zip\" $dir -Force; $styles = Get-Content \"$dir\\\\xl\\\\styles.xml\" -Raw; \"styles.xml bytes: $\\($styles.Length\\)\"; foreach \\($cor in @\\(\"2E86AB\",\"F97316\",\"0F172A\",\"E8F3F9\"\\)\\) { $n = \\([regex]::Matches\\($styles, $cor\\)\\).Count; \"cor $cor : $n ocorrencias\" })",
       "PowerShell($portas = Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $_.LocalPort -ge 5173 -and $_.LocalPort -le 5185 } | Select-Object LocalPort, OwningProcess -Unique; $portas | ForEach-Object { \"porta $\\($_.LocalPort\\) -> PID $\\($_.OwningProcess\\)\" }; $pids = $portas | Select-Object -ExpandProperty OwningProcess -Unique; foreach \\($p in $pids\\) { try { Stop-Process -Id $p -Force -Confirm:$false; \"PID $p finalizado\" } catch { \"PID $p ja finalizado\" } })",
-      "Bash(node -e \"fetch\\('https://okmzphtwngmouroxopyv.supabase.co/rest/v1/app_state'\\).then\\(r => r.text\\(\\).then\\(t => console.log\\('HTTP', r.status, '-', t.slice\\(0, 120\\)\\)\\)\\)\")"
+      "Bash(node -e \"fetch\\('https://okmzphtwngmouroxopyv.supabase.co/rest/v1/app_state'\\).then\\(r => r.text\\(\\).then\\(t => console.log\\('HTTP', r.status, '-', t.slice\\(0, 120\\)\\)\\)\\)\")",
+      "Bash(node \"C:\\\\Users\\\\osnav\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-osnav-OneDrive-Desktop-esportevip\\\\3dd64716-d988-4666-a0d3-503ab8aed8d6\\\\scratchpad\\\\testa-supabase.mjs\" \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9rbXpwaHR3bmdtb3Vyb3hvcHl2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1Nzg5NjAsImV4cCI6MjA5OTE1NDk2MH0.ipTYGN3H8yqx8JaCo4xWa4wEYM5hIk3Ub_70tkRTEcY\")"
     ]
   }
 }
