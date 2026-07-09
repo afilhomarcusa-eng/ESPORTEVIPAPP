@@ -1283,7 +1283,7 @@ function ModalInactivos({ inativos, onClose }) {
 
 /* ======================== SELETOR DE PERÍODO ======================== */
 function PeriodPicker({ gran, setGran, ref_, setRef, opts }) {
-  const todas = [["semana","Semanal"],["quinzena","Quinzenal"],["mes","Mensal"],["ano","Anual"],["tudo","Tudo"]];
+  const todas = [["semana","Semanal"],["mes","Mensal"],["tudo","Tudo"]];
   const lista = opts || todas;
   return (
     <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
@@ -1779,7 +1779,7 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range, gerarRelatorio 
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm text-slate-500 mr-1">Período: <span className="font-medium text-slate-700">{custom ? `${fmtData(dtDe)} a ${fmtData(dtAte)}` : rotulo}</span></span>
           <div className="flex h-9 rounded-lg border border-slate-200 overflow-hidden w-fit bg-white">
-            {[["semana","Semanal"],["quinzena","Quinzenal"],["mes","Mensal"],["ano","Anual"]].map(([id, lab]) => (
+            {[["semana","Semanal"],["mes","Mensal"]].map(([id, lab]) => (
               <button key={id} onClick={() => setPeriodDates(id)} className="px-3 text-xs font-medium hover:bg-slate-50 border-r border-slate-200 last:border-0 text-slate-600 transition-colors duration-150">{lab}</button>
             ))}
           </div>
