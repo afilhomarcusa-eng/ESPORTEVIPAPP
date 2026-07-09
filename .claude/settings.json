@@ -54,7 +54,9 @@
       "Bash(node -e \"fetch\\('https://okmzphtwngmouroxopyv.supabase.co/rest/v1/app_state'\\).then\\(r => r.text\\(\\).then\\(t => console.log\\('HTTP', r.status, '-', t.slice\\(0, 120\\)\\)\\)\\)\")",
       "Bash(node \"C:\\\\Users\\\\osnav\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-osnav-OneDrive-Desktop-esportevip\\\\3dd64716-d988-4666-a0d3-503ab8aed8d6\\\\scratchpad\\\\testa-supabase.mjs\" \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9rbXpwaHR3bmdtb3Vyb3hvcHl2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1Nzg5NjAsImV4cCI6MjA5OTE1NDk2MH0.ipTYGN3H8yqx8JaCo4xWa4wEYM5hIk3Ub_70tkRTEcY\")",
       "Bash(node \"C:\\\\Users\\\\osnav\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-osnav-OneDrive-Desktop-esportevip\\\\3dd64716-d988-4666-a0d3-503ab8aed8d6\\\\scratchpad\\\\teste-completo-persistencia.mjs\")",
-      "Bash(curl -s http://localhost:5173 -o /dev/null -w \"dev server: HTTP %{http_code}\\\\n\")"
+      "Bash(curl -s http://localhost:5173 -o /dev/null -w \"dev server: HTTP %{http_code}\\\\n\")",
+      "Bash(awk '/id=\"auditoria-gastos-pdf-area\"/{inicio=NR} inicio && /^      <\\\\/div>$/ && NR>inicio {print NR; exit}' src/App.jsx)",
+      "Bash(awk '/id=\"auditoria-pdf-area\"/{inicio=NR} inicio && NR>inicio && /^      <\\\\/div>$/{print NR; exit}' src/App.jsx)"
     ]
   }
 }

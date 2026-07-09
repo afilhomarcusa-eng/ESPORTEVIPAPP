@@ -609,6 +609,33 @@ async function saveDB(db) {
   return { localOk, nuvemOk };
 }
 
+/* ======================== CAPTURA DE IMAGEM (html2canvas) ========================
+   No celular o html2canvas captura o nó como ele está na tela (estreito e com a
+   página rolada), saindo torto e fora de enquadramento. Aqui clonamos o elemento
+   fora da tela em LARGURA FIXA e capturamos o clone — a imagem sai sempre igual
+   à versão desktop, em qualquer aparelho. windowWidth alto faz as media queries
+   (sm:/lg:) avaliarem como desktop dentro do html2canvas. */
+async function capturarElemento(node, largura, opcoes = {}) {
+  const wrapper = document.createElement("div");
+  wrapper.style.cssText = `position:absolute;left:-10000px;top:0;width:${largura}px;pointer-events:none;`;
+  const clone = node.cloneNode(true);
+  clone.style.width = `${largura}px`;
+  clone.style.maxWidth = `${largura}px`;
+  clone.style.minWidth = "0";
+  clone.style.margin = "0";
+  wrapper.appendChild(clone);
+  document.body.appendChild(wrapper);
+  try {
+    return await window.html2canvas(clone, {
+      scale: 3, useCORS: true, scrollX: 0, scrollY: 0,
+      windowWidth: 1400, windowHeight: 1000,
+      ...opcoes,
+    });
+  } finally {
+    document.body.removeChild(wrapper);
+  }
+}
+
 /* ======================== EXPORTAÇÃO EXCEL ======================== */
 function exportarExcel({ db, incluirGastos = true }) {
   const wb = XLSX.utils.book_new();
@@ -1138,7 +1165,7 @@ export default function App() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans overflow-x-clip">
       <header className="sticky top-0 z-20">
         <div className="bg-slate-900 border-b-2 border-orange-500">
           <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 flex items-center h-14">
@@ -1549,6 +1576,8 @@ function Dashboard({ db, update, cambById, lancs, totais, totaisPrev, gran, ref_
         <Kpi titulo="Gastos" valor={money(gastosPeriodo)} delta={delta(gastosPeriodo, gastosPrev)} cor="amber" inverso corValor={gastosPeriodo >= 0 ? "text-emerald-600" : "text-rose-600"} />
         <Kpi titulo="Líquido Casa" valor={money(liquidoCasa)} delta={delta(liquidoCasa, liquidoCasaPrev)} cor={liquidoCasa >= 0 ? "emerald" : "rose"} corValor={liquidoCasa >= 0 ? "text-emerald-600" : "text-rose-600"} />
         <Kpi titulo="Cambistas Ativos" valor={`${cambistasAtivos}`} cor="indigo" />
+        {/* preenche a 6ª célula nas grades de 2 e 3 colunas (senão aparece um bloco cinza) */}
+        <div className="bg-white xl:hidden" />
       </StatPanel>
 
       {metaPeriodo != null && (
@@ -2599,7 +2628,7 @@ function FechamentoSemanal({ db, cambById, lancs, gran, ref_, preSelecionar, onC
   const baixarImagem = async () => {
     if (!window.html2canvas || !ticketRef.current) { toast("O gerador de imagem ainda está carregando. Tente novamente em alguns segundos.", "error"); return; }
     try {
-      const canvas = await window.html2canvas(ticketRef.current, { backgroundColor: null, scale: 3, useCORS: true });
+      const canvas = await capturarElemento(ticketRef.current, 460, { backgroundColor: null });
       const link = document.createElement("a");
       link.download = `relatorio-${(nome || "cambista").toLowerCase().replace(/\s+/g, "-")}.png`;
       link.href = canvas.toDataURL("image/png");
@@ -2615,7 +2644,7 @@ function FechamentoSemanal({ db, cambById, lancs, gran, ref_, preSelecionar, onC
     if (!window.html2canvas || !ticketRef.current) return toast("Aguarde o gerador de imagem carregar.", "error");
 
     try {
-      const canvas = await window.html2canvas(ticketRef.current, { backgroundColor: null, scale: 3, useCORS: true });
+      const canvas = await capturarElemento(ticketRef.current, 460, { backgroundColor: null });
       const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
 
       const formData = new FormData();
@@ -2731,7 +2760,7 @@ function FechamentoSemanal({ db, cambById, lancs, gran, ref_, preSelecionar, onC
           {/* IMPORTANTE (exportação): html2canvas 1.4.1 não suporta `gap` em flexbox —
               dentro desta área use margens (mr-/ml-) em vez de gap, senão a imagem sai
               com elementos sobrepostos. Largura fixa para o PNG sair como ticket. */}
-          <div id="ticket-print-area" ref={ticketRef} className="rounded-3xl border-4 border-orange-500 p-8 w-full max-w-[460px] mx-auto" style={{ background: "#020617" }}>
+          <div id="ticket-print-area" ref={ticketRef} className="rounded-3xl border-4 border-orange-500 p-5 sm:p-8 w-full max-w-[460px] mx-auto" style={{ background: "#020617" }}>
             <div className="text-center mb-6">
               <div className="text-2xl font-black tracking-tight"><span className="text-white">ESPORTEVIP</span><span className="text-orange-500">APP</span></div>
               {telefone && <div className="text-white text-sm font-semibold mt-1">{telefone}</div>}
@@ -2741,7 +2770,7 @@ function FechamentoSemanal({ db, cambById, lancs, gran, ref_, preSelecionar, onC
 
             <div className="text-center mb-6">
               <div className="text-[11px] tracking-[0.3em] text-orange-500 font-bold uppercase">RELATÓRIO</div>
-              <div className="text-white font-black uppercase leading-[0.95] mt-1 text-3xl">{rotuloPeriodo(gran, ref_)}</div>
+              <div className="text-white font-black uppercase leading-[0.95] mt-1 text-2xl sm:text-3xl">{rotuloPeriodo(gran, ref_)}</div>
               <div className="inline-block mt-4 bg-slate-800/70 border border-slate-700 rounded-full px-4 py-1.5 text-xs">
                 <span className="text-slate-500 mr-2">Período</span><span className="font-semibold text-white">{periodoTxt || periodoDefault}</span>
               </div>
@@ -2858,7 +2887,7 @@ function AuditoriaCambistas({ db }) {
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-3 gap-px rounded-xl overflow-hidden border border-slate-200 bg-slate-200">
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-px rounded-xl overflow-hidden border border-slate-200 bg-slate-200">
           <div className="bg-white p-3 sm:p-4">
             <div className="flex items-center min-w-0"><span className="w-1.5 h-1.5 rounded-full shrink-0 mr-2 bg-indigo-500" /><span className={`${eyebrow} truncate`}>Cambistas</span></div>
             <div className="text-2xl font-bold text-slate-900 tabular-nums mt-1.5">{cambistasAtivos.length}</div>
@@ -2925,7 +2954,7 @@ function AuditoriaGastos({ db }) {
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-3 gap-px rounded-xl overflow-hidden border border-slate-200 bg-slate-200">
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-px rounded-xl overflow-hidden border border-slate-200 bg-slate-200">
           <div className="bg-white p-3 sm:p-4">
             <div className="flex items-center min-w-0"><span className="w-1.5 h-1.5 rounded-full shrink-0 mr-2 bg-amber-500" /><span className={`${eyebrow} truncate`}>Total Gasto</span></div>
             <div className="text-2xl font-bold text-slate-900 tabular-nums mt-1.5 truncate">{brl(totalGasto)}</div>
@@ -3035,7 +3064,7 @@ function RelatorioAuditoriaGastos({ db, dtDe, dtAte }) {
     if (!auditoriaGastosPDFRef.current) return;
     setGerando(true);
     try {
-      const canvas = await window.html2canvas(auditoriaGastosPDFRef.current, { backgroundColor: "#ffffff", scale: 2, useCORS: true });
+      const canvas = await capturarElemento(auditoriaGastosPDFRef.current, 900, { backgroundColor: "#ffffff", scale: 2 });
       const link = document.createElement("a");
       link.download = `auditoria-gastos-${iso(new Date()).replace(/-/g, "-")}.png`;
       link.href = canvas.toDataURL("image/png");
@@ -3083,7 +3112,8 @@ function RelatorioAuditoriaGastos({ db, dtDe, dtAte }) {
         </div>
       </div>
 
-      <div id="auditoria-gastos-pdf-area" ref={auditoriaGastosPDFRef} className="bg-white p-8 space-y-6" style={{ minHeight: "1400px", fontFamily: "system-ui" }}>
+      <div className="overflow-x-auto rounded-lg border border-slate-200">
+      <div id="auditoria-gastos-pdf-area" ref={auditoriaGastosPDFRef} className="bg-white p-8 space-y-6 min-w-[720px]" style={{ minHeight: "1400px", fontFamily: "system-ui" }}>
         <div className="text-center border-b pb-6">
           <h1 className="text-4xl font-black text-slate-900">RELATÓRIO DE AUDITORIA DE GASTOS</h1>
           <p className="text-sm text-slate-500 mt-2">Análise Completa do Histórico de Despesas</p>
@@ -3286,6 +3316,7 @@ function RelatorioAuditoriaGastos({ db, dtDe, dtAte }) {
           <p>ESPORTEVIPAPP - Sistema de Análise de Gastos</p>
         </div>
       </div>
+      </div>
     </div>
   );
 }
@@ -3320,7 +3351,7 @@ function RelatorioAuditoria({ db, dtDe, dtAte }) {
     if (!auditoriaPDFRef.current) return;
     setGerando(true);
     try {
-      const canvas = await window.html2canvas(auditoriaPDFRef.current, { backgroundColor: "#ffffff", scale: 2, useCORS: true });
+      const canvas = await capturarElemento(auditoriaPDFRef.current, 900, { backgroundColor: "#ffffff", scale: 2 });
       const link = document.createElement("a");
       link.download = `auditoria-completa-${iso(new Date()).replace(/-/g, "-")}.png`;
       link.href = canvas.toDataURL("image/png");
@@ -3376,7 +3407,8 @@ function RelatorioAuditoria({ db, dtDe, dtAte }) {
         </div>
       </div>
 
-      <div id="auditoria-pdf-area" ref={auditoriaPDFRef} className="bg-white p-8 space-y-6" style={{ minHeight: "1000px", fontFamily: "system-ui" }}>
+      <div className="overflow-x-auto rounded-lg border border-slate-200">
+      <div id="auditoria-pdf-area" ref={auditoriaPDFRef} className="bg-white p-8 space-y-6 min-w-[720px]" style={{ minHeight: "1000px", fontFamily: "system-ui" }}>
         <div className="text-center border-b pb-6">
           <h1 className="text-4xl font-black text-slate-900">RELATÓRIO DE AUDITORIA COMPLETA</h1>
           <p className="text-sm text-slate-500 mt-2">Análise de Fraude e Desempenho Histórico</p>
@@ -3519,6 +3551,7 @@ function RelatorioAuditoria({ db, dtDe, dtAte }) {
           <p>Relatório gerado em {fmtData(iso(new Date()))} às {new Date().toLocaleTimeString("pt-BR")}</p>
           <p>ESPORTEVIPAPP - Sistema de Análise de Cambistas</p>
         </div>
+      </div>
       </div>
     </div>
   );
