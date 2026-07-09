@@ -8,7 +8,7 @@ import {
 import {
   LayoutDashboard, Users, DollarSign, FileText, TrendingUp, TrendingDown,
   Plus, Trash2, Pencil, X, Check, AlertTriangle, ChevronLeft,
-  ChevronRight, Wallet, Percent, Coins, RotateCcw, Search, Circle,
+  ChevronRight, ChevronDown, Wallet, Percent, Coins, Search, Circle,
   FileSpreadsheet, Target, Banknote, Clock, CheckCircle2, Trophy, Upload, Printer, Send,
   Calendar, BarChart3, Loader2, Inbox, CheckCircle, XCircle, Info, MoreVertical, Eye, EyeOff, Lock,
   Link2, RefreshCw,
@@ -529,47 +529,9 @@ function cambistasInativos(cambistas, lancamentos, limite = 7) {
   }).filter((x) => x.dias >= limite);
 }
 
-/* ======================== DADOS DE EXEMPLO ======================== */
-function seed() {
-  const cambistas = [
-    { id: "c1", nome: "Ana", contato: "(11) 90000-0001", comissaoPadrao: 0.10, ativo: true, criadoEm: iso(new Date()) },
-    { id: "c2", nome: "João", contato: "(11) 90000-0002", comissaoPadrao: 0.15, ativo: true, criadoEm: iso(new Date()) },
-    { id: "c3", nome: "Flávio", contato: "(11) 90000-0003", comissaoPadrao: 0.20, ativo: true, criadoEm: iso(new Date()) },
-    { id: "c4", nome: "Antônio", contato: "(11) 90000-0004", comissaoPadrao: 0.10, ativo: true, criadoEm: iso(new Date()) },
-  ];
-  const perfil = { c1: 260, c2: 150, c3: -80, c4: 190 };
-  const lancamentos = [];
-  const hoje = new Date();
-  for (let dia = 90; dia >= 0; dia -= 1) {
-    const data = new Date(hoje); data.setDate(hoje.getDate() - dia);
-    if (data.getDay() === 0) continue;
-    for (const c of cambistas) {
-      if (c.id === "c4" && dia < 12) continue;
-      if (Math.random() < 0.4) continue;
-      const base = perfil[c.id];
-      const ruido = (Math.random() - 0.45) * 600;
-      const positivo = Math.round((base + ruido) / 10) * 10;
-      if (positivo === 0) continue;
-      const hold = 0.07 + Math.random() * 0.08;
-      const movimentacao = Math.round(Math.abs(positivo) / hold / 10) * 10;
-      lancamentos.push({ id: uid(), cambistaId: c.id, data: iso(data), positivo, movimentacao, obs: "" });
-    }
-  }
-  const pagamentos = [
-    { id: uid(), cambistaId: "c3", data: iso(new Date(Date.now() - 5 * 86400000)), valor: 200, obs: "pix" },
-    { id: uid(), cambistaId: "c1", data: iso(new Date(Date.now() - 12 * 86400000)), valor: 300, obs: "dinheiro" },
-  ];
-  const gastos = [];
-  for (let dia = 60; dia >= 0; dia -= 2) {
-    const data = new Date(hoje); data.setDate(hoje.getDate() - dia);
-    const categorias = ["Alimentação", "Transporte", "Infraestrutura", "Marketing"];
-    for (const cat of categorias) {
-      if (Math.random() < 0.5) continue;
-      const valor = Math.round(Math.random() * 500 + 50);
-      gastos.push({ id: uid(), categoria: cat, descricao: `Despesa de ${cat.toLowerCase()}`, valor, data: iso(data) });
-    }
-  }
-  return { cambistas, lancamentos, pagamentos, gastos, metaMensal: 10000, exemplo: true, version: 4 };
+/* ======================== BANCO VAZIO ======================== */
+function bancoVazio() {
+  return { cambistas: [], lancamentos: [], pagamentos: [], gastos: [], metaMensal: 10000, version: 4 };
 }
 
 /* ======================== ARMAZENAMENTO ======================== */
@@ -622,14 +584,16 @@ function localSalvar(db) {
 
 async function loadDB() {
   let db = localCarregar();
+  if (db && db.exemplo) db = null; // purga dados de exemplo de versões antigas
   if (nuvemConfigurada()) {
     try {
       const nuvem = await nuvemCarregar();
-      if (nuvem) db = nuvem; // a nuvem é a fonte da verdade
-      else if (db) await nuvemSalvar(db); // primeira vez: sobe o que existe localmente
+      if (nuvem && !nuvem.exemplo) db = nuvem; // a nuvem é a fonte da verdade
+      else if (db) await nuvemSalvar(db); // primeira vez (ou nuvem só com exemplo): sobe o local
     } catch (e) { console.warn("Nuvem indisponível, usando dados locais:", e.message); }
   }
-  if (!db) db = seed();
+  if (!db) db = bancoVazio();
+  delete db.exemplo;
   db = normalizarDB(db);
   localSalvar(db);
   return db;
@@ -1152,7 +1116,7 @@ export default function App() {
     </div>
   );
 
-  const update = (fn) => setDb((cur) => { const next = structuredClone(cur); fn(next); next.exemplo = false; return next; });
+  const update = (fn) => setDb((cur) => { const next = structuredClone(cur); fn(next); return next; });
 
   const gerarRelatorioSemanal = (cambistaId) => {
     setGran("semana");
@@ -1196,12 +1160,6 @@ export default function App() {
                 <Circle size={7} className={`mr-1.5 ${salvando ? "text-amber-400 fill-amber-400" : nuvemErro ? "text-rose-400 fill-rose-400" : "text-emerald-400 fill-emerald-400"}`} />
                 {salvando ? "Salvando..." : nuvemErro ? "Sem conexão com a nuvem" : nuvemConfigurada() ? "Salvo na nuvem" : "Tudo salvo"}
               </span>
-              {db.exemplo && (
-                <button onClick={() => { if (confirm("Zerar todos os dados de exemplo e começar do zero?")) setDb({ cambistas: [], lancamentos: [], pagamentos: [], gastos: [], metaMensal: 10000, exemplo: false, version: 4 }); }}
-                  title="Limpar dados de exemplo" className="text-[11px] text-slate-400 hover:text-rose-300 border border-slate-700 rounded-lg px-2.5 py-1.5 mr-2 transition-colors inline-flex items-center">
-                  <RotateCcw size={12} className="mr-1.5" /> Limpar exemplo
-                </button>
-              )}
               <button onClick={() => { try { localStorage.removeItem("esportevipapp:unlocked"); } catch {} setAutenticado(false); }}
                 title="Bloquear acesso" aria-label="Bloquear acesso" className="text-slate-400 hover:text-white p-2 rounded-lg hover:bg-slate-800 transition-colors">
                 <Lock size={15} />
@@ -1214,7 +1172,6 @@ export default function App() {
           <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center gap-3 flex-wrap">
             <div className="mr-auto min-w-0">
               <div className="text-lg sm:text-xl font-bold tracking-tight text-slate-900 truncate">{nav.find((n) => n.id === aba)?.nome}</div>
-              {db.exemplo && <div className="text-[11px] text-amber-600 hidden sm:block mt-0.5">Você está vendo dados de exemplo. Edite ou limpe quando quiser.</div>}
             </div>
             {inativos.length > 0 && (
               <button onClick={() => setShowInativeModal(true)} className="inline-flex items-center gap-2 text-xs bg-amber-100 border border-amber-300 text-amber-800 rounded-lg px-2.5 py-1.5 hover:bg-amber-200 transition">
@@ -1397,7 +1354,7 @@ function EmptyState({ icon: Ic = Inbox, titulo, descricao, acao }) {
 }
 
 /* ======================== MENU DE AÇÕES (portal — escapa do clipping de containers com scroll) ======================== */
-function ActionMenu({ children }) {
+function ActionMenu({ children, trigger, larguraMenu = "w-44" }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState({ top: 0, right: 0 });
   const btnRef = useRef(null);
@@ -1434,13 +1391,20 @@ function ActionMenu({ children }) {
 
   return (
     <>
-      <button ref={btnRef} onClick={toggle} title="Ações" aria-label="Abrir menu de ações" aria-expanded={open}
-        className={`p-1.5 rounded-md transition-colors duration-150 ${open ? "bg-slate-100 text-slate-700" : "text-slate-500 hover:bg-slate-100"}`}>
-        <MoreVertical size={16} />
-      </button>
+      {trigger ? (
+        <button ref={btnRef} onClick={toggle} aria-expanded={open}
+          className={`inline-flex items-center gap-2 text-sm border rounded-lg px-3 py-2 transition-colors duration-150 ${open ? "border-slate-300 bg-slate-50 text-slate-700" : "border-slate-200 bg-white hover:bg-slate-50 text-slate-600"}`}>
+          {trigger}
+        </button>
+      ) : (
+        <button ref={btnRef} onClick={toggle} title="Ações" aria-label="Abrir menu de ações" aria-expanded={open}
+          className={`p-1.5 rounded-md transition-colors duration-150 ${open ? "bg-slate-100 text-slate-700" : "text-slate-500 hover:bg-slate-100"}`}>
+          <MoreVertical size={16} />
+        </button>
+      )}
       {open && createPortal(
         <div ref={menuRef} style={{ position: "fixed", top: pos.top, right: pos.right }}
-          className="w-44 bg-white border border-slate-200 rounded-lg shadow-modal z-[100] py-1 animate-scale-in origin-top-right"
+          className={`${larguraMenu} bg-white border border-slate-200 rounded-lg shadow-modal z-[100] py-1 animate-scale-in origin-top-right`}
           onClick={() => setOpen(false)}>
           {children}
         </div>,
@@ -1783,32 +1747,23 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range, gerarRelatorio 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="text-sm text-slate-500">Período: <span className="font-medium text-slate-700">{custom ? `${fmtData(dtDe)} a ${fmtData(dtAte)}` : rotulo}</span></div>
-          <div className="flex rounded-lg border border-slate-200 overflow-hidden w-fit">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm text-slate-500 mr-1">Período: <span className="font-medium text-slate-700">{custom ? `${fmtData(dtDe)} a ${fmtData(dtAte)}` : rotulo}</span></span>
+          <div className="flex h-9 rounded-lg border border-slate-200 overflow-hidden w-fit bg-white">
             {[["semana","Semanal"],["quinzena","Quinzenal"],["mes","Mensal"],["ano","Anual"]].map(([id, lab]) => (
-              <button key={id} onClick={() => setPeriodDates(id)} className="px-2.5 py-1.5 text-xs font-medium hover:bg-slate-50 border-r border-slate-200 last:border-0 text-slate-600 transition-colors duration-150">{lab}</button>
+              <button key={id} onClick={() => setPeriodDates(id)} className="px-3 text-xs font-medium hover:bg-slate-50 border-r border-slate-200 last:border-0 text-slate-600 transition-colors duration-150">{lab}</button>
             ))}
           </div>
-          <div className={`flex items-center gap-1.5 text-xs border rounded-lg px-2.5 py-1.5 transition-colors duration-150 ${custom ? "border-orange-300 bg-orange-50" : "border-slate-200 bg-white"}`}>
-            <span className="text-slate-500">De</span>
+          <div className={`flex h-9 items-center text-xs border rounded-lg px-2.5 transition-colors duration-150 ${custom ? "border-orange-300 bg-orange-50" : "border-slate-200 bg-white"}`}>
+            <span className="text-slate-400 mr-1.5">De</span>
             <input type="date" value={dtDe} onChange={(ev) => setDtDe(ev.target.value)} className="outline-none bg-transparent text-slate-700" />
-            <span className="text-slate-500">Até</span>
+            <span className="text-slate-400 mx-1.5">até</span>
             <input type="date" value={dtAte} onChange={(ev) => setDtAte(ev.target.value)} className="outline-none bg-transparent text-slate-700" />
+            {custom && <button onClick={() => { setDtDe(""); setDtAte(""); }} aria-label="Limpar período" className="ml-1.5 text-slate-400 hover:text-rose-500 transition-colors"><X size={13} /></button>}
           </div>
-          {custom && <button onClick={() => { setDtDe(""); setDtAte(""); }} className="text-xs text-slate-400 hover:text-rose-500 transition-colors">limpar</button>}
         </div>
         <div className="flex gap-2 flex-wrap">
           <input ref={fileRef} type="file" accept=".xlsx" className="hidden" onChange={(ev) => { aoImportar(ev.target.files[0]); ev.target.value = ""; }} />
-          <button onClick={() => fileRef.current?.click()} disabled={importando}
-            className="inline-flex items-center gap-2 text-sm border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 rounded-lg px-3 py-2 transition-colors duration-150 disabled:opacity-50">
-            {importando ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />} {importando ? "Importando" : "Importar Planilha"}
-          </button>
-          <button onClick={() => { exportarExcel({ db, incluirGastos: false }); toast("Planilha de fechamento gerada (sem gastos).", "success"); }}
-            title="Planilha com Lançamentos, Cambistas e Pagamentos — sem a aba de Gastos"
-            className="inline-flex items-center gap-2 text-sm border border-orange-200 bg-orange-50 hover:bg-orange-100 text-orange-700 rounded-lg px-3 py-2 transition-colors duration-150">
-            <FileSpreadsheet size={15} /> Exportar Planilha
-          </button>
           {db.planilhaUrl ? (
             <button onClick={() => sincronizar(db.planilhaUrl)} disabled={sincronizando}
               title={`Puxar dados da planilha online${db.planilhaUltimaSync ? ` — última sync: ${db.planilhaUltimaSync}` : ""}`}
@@ -1816,11 +1771,20 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range, gerarRelatorio 
               <RefreshCw size={15} className={sincronizando ? "animate-spin" : ""} /> {sincronizando ? "Sincronizando..." : "Sincronizar"}
             </button>
           ) : null}
-          <button onClick={() => setPlanilhaModal(true)}
-            title="Conectar uma planilha do Google Sheets"
-            className="inline-flex items-center gap-2 text-sm border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 rounded-lg px-3 py-2 transition-colors duration-150">
-            <Link2 size={15} /> Planilha Online
-          </button>
+          <ActionMenu larguraMenu="w-56" trigger={<><FileSpreadsheet size={15} /> Planilha <ChevronDown size={14} className="text-slate-400" /></>}>
+            <button onClick={() => { exportarExcel({ db, incluirGastos: false }); toast("Planilha de fechamento gerada (sem gastos).", "success"); }}
+              className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors duration-150">
+              <FileSpreadsheet size={14} /> Exportar (fechamento)
+            </button>
+            <button onClick={() => fileRef.current?.click()} disabled={importando}
+              className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors duration-150 disabled:opacity-50">
+              <Upload size={14} /> {importando ? "Importando..." : "Importar arquivo"}
+            </button>
+            <button onClick={() => setPlanilhaModal(true)}
+              className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors duration-150">
+              <Link2 size={14} /> Planilha Online (link)
+            </button>
+          </ActionMenu>
           <button onClick={() => setEditar({ id: null, nome: "", contato: "", comissaoPadrao: 0.1, ativo: true })}
             className="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-lg px-3 py-2 transition-colors duration-150">
             <Plus size={16} /> Novo Cambista
