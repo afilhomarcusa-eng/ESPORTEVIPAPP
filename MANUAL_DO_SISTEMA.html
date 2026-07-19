@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Manual do Sistema — ESPORTE VIP</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; color: #1e293b; line-height: 1.55; padding: 36px 44px; font-size: 13px; }
+  .capa { text-align: center; padding: 60px 0 40px; border-bottom: 4px solid #f97316; margin-bottom: 32px; }
+  .capa h1 { font-size: 30px; color: #0f172a; letter-spacing: 1px; }
+  .capa .sub { color: #f97316; font-weight: 700; font-size: 15px; margin-top: 6px; text-transform: uppercase; letter-spacing: 2px; }
+  .capa .data { color: #64748b; margin-top: 14px; font-size: 12px; }
+  h2 { background: #0f172a; color: #fff; padding: 8px 14px; border-radius: 6px; font-size: 15px; margin: 26px 0 12px; page-break-after: avoid; }
+  h2 .num { color: #fb923c; margin-right: 8px; }
+  h3 { color: #c2410c; font-size: 13.5px; margin: 14px 0 6px; page-break-after: avoid; }
+  p, li { margin-bottom: 5px; }
+  ul, ol { margin: 4px 0 10px 22px; }
+  .passo { background: #f8fafc; border-left: 4px solid #f97316; padding: 10px 14px; border-radius: 0 8px 8px 0; margin: 8px 0; page-break-inside: avoid; }
+  .passo b { color: #0f172a; }
+  .atencao { background: #fef2f2; border: 1.5px solid #fecaca; border-left: 5px solid #dc2626; padding: 10px 14px; border-radius: 8px; margin: 10px 0; page-break-inside: avoid; }
+  .atencao b { color: #dc2626; }
+  .dica { background: #f0fdf4; border: 1.5px solid #bbf7d0; border-left: 5px solid #16a34a; padding: 10px 14px; border-radius: 8px; margin: 10px 0; page-break-inside: avoid; }
+  .dica b { color: #15803d; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 12px; page-break-inside: avoid; }
+  th { background: #0f172a; color: #fff; padding: 7px 10px; text-align: left; }
+  td { border: 1px solid #e2e8f0; padding: 6px 10px; vertical-align: top; }
+  tr:nth-child(even) td { background: #f8fafc; }
+  .bolinha { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; }
+  .verde { background: #34d399; } .amarela { background: #fbbf24; } .vermelha { background: #fb7185; }
+  code { background: #f1f5f9; padding: 1px 6px; border-radius: 4px; font-size: 11.5px; color: #0f172a; }
+  .rodape { margin-top: 30px; padding-top: 12px; border-top: 2px solid #e2e8f0; color: #94a3b8; font-size: 11px; text-align: center; }
+</style>
+</head>
+<body>
+
+<div class="capa">
+  <h1>MANUAL DO SISTEMA</h1>
+  <div class="sub">Esporte VIP — Gestão de Cambistas</div>
+  <div class="data">Guia passo a passo de operação &nbsp;•&nbsp; Julho de 2026</div>
+</div>
+
+<h2><span class="num">1.</span>Entrando no sistema</h2>
+<div class="passo">Abra o site e digite a <b>senha de acesso</b>. O sistema abre no <b>Dashboard</b>, com o resumo geral (bruto, comissões, líquido, meta do mês e gráficos).</div>
+<p>As abas no topo são: <b>Dashboard</b> (visão geral), <b>Cambistas</b> (o dia a dia), <b>Gastos</b> (despesas da operação) e <b>Relatórios</b> (fechamento semanal e auditorias).</p>
+
+<h2><span class="num">2.</span>Como o sistema salva (você não precisa fazer nada)</h2>
+<p>Tudo que você faz é salvo <b>automaticamente</b> em três lugares: no navegador, na <b>nuvem</b> (Supabase) e na <b>planilha do Google</b>. Não existe botão "Salvar" — e não precisa existir.</p>
+<table>
+  <tr><th>Bolinha no topo</th><th>Significado</th><th>O que fazer</th></tr>
+  <tr><td><span class="bolinha verde"></span><b>Verde</b> — "Salvo na nuvem"</td><td>Tudo salvo e sincronizado</td><td>Nada. Está tudo certo.</td></tr>
+  <tr><td><span class="bolinha amarela"></span><b>Amarela</b> — "Salvando..."</td><td>Gravando na nuvem agora</td><td>Espere 1 segundo.</td></tr>
+  <tr><td><span class="bolinha vermelha"></span><b>Vermelha</b> — "Sem conexão"</td><td>Internet caiu; os dados ficaram salvos no aparelho</td><td>Quando a internet voltar, salva sozinho. Não feche sem necessidade.</td></tr>
+</table>
+
+<h2><span class="num">3.</span>Cambistas — o dia a dia</h2>
+
+<h3>3.1 Cadastrar um cambista</h3>
+<div class="passo">Aba <b>Cambistas</b> → botão <b>Novo Cambista</b> → preencha <b>Nome</b>, <b>Contato</b> (opcional) e <b>Comissão padrão</b> (ex.: 15) → <b>Salvar</b>.</div>
+
+<h3>3.2 Lançar o movimento da semana</h3>
+<div class="passo">Na linha do cambista → menu <b>⋮</b> → <b>Novo lançamento</b> → digite o <b>Valor</b> movimentado → confira a <b>Semana</b> (vem selecionada a atual; dá para escolher semanas anteriores) → confira a <b>Comissão %</b> → <b>Salvar</b>.</div>
+<ul>
+  <li>O lançamento é sempre <b>por semana</b> (segunda a domingo), não por dia.</li>
+  <li>Se o cambista <b>perdeu</b> na semana, toque no botão <b>+/−</b> ao lado do valor para deixá-lo <b>negativo</b> (fica vermelho). O resultado vira saldo devedor.</li>
+  <li>O modal mostra na hora a comissão e o líquido da casa calculados.</li>
+</ul>
+
+<h3>3.3 Registrar pagamento (quando você paga a comissão do cambista)</h3>
+<div class="passo">Menu <b>⋮</b> do cambista → <b>Registrar pagamento</b> → o valor já vem sugerido com o saldo devido → confirme a data → <b>Salvar</b>.</div>
+
+<h3>3.4 Ver detalhes / corrigir erros</h3>
+<div class="passo"><b>Clique no nome do cambista</b> para abrir os detalhes: KPIs, histórico de lançamentos e pagamentos, com filtro por semana, mês ou período livre.</div>
+<ul>
+  <li>Errou um lançamento? Na lista de histórico, clique na <b>lixeira 🗑</b> da linha errada → confirmar. Depois lance de novo com o valor certo.</li>
+  <li>O mesmo vale para <b>pagamentos</b> (seção "Pagamentos no Período").</li>
+</ul>
+
+<h3>3.5 Remover um cambista que saiu</h3>
+<div class="passo">Menu <b>⋮</b> → <b>Remover da lista</b> → confirmar.</div>
+<div class="dica"><b>Importante:</b> remover da lista <b>NÃO apaga o histórico</b>. Os lançamentos e pagamentos dele continuam contando no faturamento, no lucro anual e nos relatórios — ele apenas some da lista e dos seletores. Isso é proposital, para os números anuais nunca mudarem.</div>
+
+<h2><span class="num">4.</span>Gastos</h2>
+<div class="passo">Aba <b>Gastos</b> → preencha <b>Categoria</b>, <b>Descrição</b>, <b>Valor</b>, <b>Data</b> e <b>Responsável</b> → <b>Adicionar</b>.</div>
+<ul>
+  <li>Para <b>editar</b>: lápis ✏ na linha → o formulário sobe preenchido → salve.</li>
+  <li>Para <b>excluir</b>: lixeira 🗑 na linha → confirmar.</li>
+  <li>Os gastos entram no cálculo de lucro do Dashboard e aparecem na planilha do Google (bloco GASTOS, em creme).</li>
+</ul>
+
+<h2><span class="num">5.</span>Planilha do Google — como funciona</h2>
+<p>A aba <b>COMISSÕES</b> da planilha é o espelho bonito do sistema: semanas separadas em faixas escuras, valores em R$, pagamentos em verde e gastos em âmbar. <b>Ela se atualiza sozinha</b> ~3 segundos após qualquer mudança no site.</p>
+
+<h3>Os dois botões (Cambistas → Planilha Online)</h3>
+<table>
+  <tr><th>Botão</th><th>O que faz</th><th>Quando usar</th></tr>
+  <tr><td><b>Enviar agora</b></td><td>Site → Planilha. Reescreve a aba COMISSÕES com os dados do site.</td><td>Raramente — o envio já é automático. Use se a planilha parecer desatualizada.</td></tr>
+  <tr><td><b>Sincronizar agora</b></td><td>Planilha → Site. <b>SUBSTITUI</b> os dados do site pelos da planilha.</td><td>Só depois de editar a planilha à mão de propósito.</td></tr>
+</table>
+<div class="atencao"><b>CUIDADO com o "Sincronizar agora":</b> ele apaga o que está no site e coloca o que está na planilha. Se a planilha estiver desatualizada, você perde os dados novos. <b>Regra de ouro: registre tudo pelo SITE e deixe a planilha se atualizar sozinha.</b></div>
+
+<h2><span class="num">6.</span>Relatórios e fechamento semanal</h2>
+<ul>
+  <li><b>Relatório semanal do cambista:</b> menu <b>⋮</b> → "Relatório semanal" — abre a aba Relatórios já filtrada nele.</li>
+  <li><b>Fechamento Semanal:</b> gera o ticket com bruto, comissão e total; dá para <b>baixar como imagem</b> e mandar no WhatsApp do cambista.</li>
+  <li><b>Exportar Excel:</b> na aba Cambistas — baixa o arquivo com abas de Lançamentos, Cambistas, Pagamentos e Gastos, com fórmulas prontas.</li>
+  <li>No celular, os relatórios e tickets saem no mesmo enquadramento do computador.</li>
+</ul>
+
+<h2><span class="num">7.</span>O que NÃO fazer (leia antes de mexer)</h2>
+<div class="atencao">
+<ol>
+  <li><b>Não clique em "Sincronizar agora" sem motivo.</b> Ele substitui o site pelos dados da planilha (ver seção 5).</li>
+  <li><b>Não edite a planilha à mão e o site ao mesmo tempo.</b> Se editar a planilha, clique em Sincronizar <i>antes</i> de voltar a usar o site.</li>
+  <li><b>Não feche a aba com a bolinha vermelha</b> sem necessidade — espere a internet voltar para subir para a nuvem.</li>
+  <li><b>Excluir lançamento/pagamento/gasto apaga de verdade</b> (com confirmação). "Remover da lista" do cambista é o único que preserva tudo.</li>
+  <li><b>Não apague as abas nem os cabeçalhos da planilha.</b> O sistema acha o cabeçalho sozinho e refaz o visual, mas a aba COMISSÕES precisa existir com as colunas NOME e MOVIMENTO.</li>
+</ol>
+</div>
+
+<h2><span class="num">8.</span>Problemas comuns e soluções</h2>
+<table>
+  <tr><th>Sintoma</th><th>Causa provável</th><th>Solução</th></tr>
+  <tr><td>Bolinha vermelha "Sem conexão com a nuvem"</td><td>Internet caiu</td><td>Dados estão no aparelho; quando a rede voltar, salva sozinho.</td></tr>
+  <tr><td>"Planilha não atualizada"</td><td>O Google não respondeu ao envio</td><td>Planilha Online → <b>Enviar agora</b>. Nuvem continua salva.</td></tr>
+  <tr><td>Planilha com cara antiga / sem estilo</td><td>Envio ainda não rodou</td><td>Faça qualquer mudança no site ou clique Enviar agora — o visual é reaplicado.</td></tr>
+  <tr><td>Toast "A planilha não respondeu..."</td><td>Web App do Apps Script fora do ar ou reimplantado</td><td>Confira o link do Web App no site; se reimplantou o script, gere Nova versão.</td></tr>
+  <tr><td>Valor salvo diferente do digitado</td><td>—</td><td>Não acontece mais: o sistema entende 1.234,56 / 1234.56 / R$ 1.234,56.</td></tr>
+</table>
+
+<h2><span class="num">9.</span>Resumo de 30 segundos</h2>
+<div class="dica">
+<b>Rotina semanal:</b> ① Lançar o movimento de cada cambista (⋮ → Novo lançamento, semana atual). ② Registrar os pagamentos feitos (⋮ → Registrar pagamento). ③ Registrar gastos na aba Gastos. ④ Conferir o Dashboard. <b>O resto — salvar, nuvem, planilha estilizada — acontece sozinho.</b>
+</div>
+
+<div class="rodape">ESPORTE VIP — Manual do Sistema • Dados protegidos na nuvem (Supabase) com espelho no Google Sheets</div>
+
+</body>
+</html>
