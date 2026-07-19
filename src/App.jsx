@@ -523,7 +523,7 @@ function calcularProjecao(meses) {
 
 function cambistasInativos(cambistas, lancamentos, limite = 7) {
   const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
-  return cambistas.filter((c) => c.ativo).map((c) => {
+  return cambistas.filter((c) => c.ativo && !c.arquivado).map((c) => {
     const ls = lancamentos.filter((l) => l.cambistaId === c.id);
     if (!ls.length) return { cambista: c, dias: Infinity };
     const last = ls.reduce((m, l) => (l.data > m ? l.data : m), ls[0].data);
@@ -957,6 +957,7 @@ function montarDeComissoes(bruto, db) {
         contato: antigo?.contato || "",
         comissaoPadrao: antigo?.comissaoPadrao ?? 0.1,
         ativo: antigo?.ativo ?? true,
+        arquivado: antigo?.arquivado || false, // arquivado não volta para a lista via Sincronizar
         criadoEm: antigo?.criadoEm || hoje,
       });
     }
@@ -1087,7 +1088,7 @@ let pularProximoEspelhoPlanilha = false;
 async function planilhaEnviar(webhookUrl, db) {
   const cambById = Object.fromEntries(db.cambistas.map((c) => [c.id, c]));
   const payload = {
-    cambistas: db.cambistas.map((c) => ({ nome: c.nome, contato: c.contato || "", comissaoPadrao: c.comissaoPadrao, ativo: c.ativo })),
+    cambistas: db.cambistas.filter((c) => !c.arquivado).map((c) => ({ nome: c.nome, contato: c.contato || "", comissaoPadrao: c.comissaoPadrao, ativo: c.ativo })),
     lancamentos: [...db.lancamentos].sort((a, b) => a.data.localeCompare(b.data)).map((l) => ({
       data: fmtData(l.data),
       cambista: cambById[l.cambistaId]?.nome || "",
@@ -1645,7 +1646,7 @@ function Dashboard({ db, update, cambById, lancs, totais, totaisPrev, gran, ref_
   const liquidoCasa = totaisEf.receber - gastosPeriodo;
   const liquidoCasaPrev = totaisPrevEf.receber - gastosPrev;
 
-  const cambistasAtivos = db.cambistas.filter((c) => c.ativo).length;
+  const cambistasAtivos = db.cambistas.filter((c) => c.ativo && !c.arquivado).length;
   const emPrejuizo = porCambista.filter((c) => c.receber < 0);
   const metaPeriodo = metaDoPeriodo(db.metaMensal, gran);
   const progresso = metaPeriodo ? totaisEf.receber / metaPeriodo : null;
@@ -1825,7 +1826,7 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range, gerarRelatorio 
   const [s, e] = custom ? [parse(dtDe), parse(dtAte)] : range;
   const lancsEf = useMemo(() => custom ? (db.lancamentos || []).filter((l) => dentro(l, s, e)) : lancs, [custom, db.lancamentos, lancs, s, e]);
 
-  const linhas = useMemo(() => db.cambistas.map((c) => {
+  const linhas = useMemo(() => db.cambistas.filter((c) => !c.arquivado).map((c) => {
     const ls = lancsEf.filter((l) => l.cambistaId === c.id);
     const ag = agrega(ls, cambById);
     const pago = (db.pagamentos || []).filter((p) => p.cambistaId === c.id && dentro(p, s, e)).reduce((a, p) => a + p.valor, 0);
@@ -1966,18 +1967,17 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range, gerarRelatorio 
                         <button onClick={() => setEditar({ ...c })} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors duration-150"><Pencil size={14} /> Editar</button>
                         <div className="border-t border-slate-100 my-1"></div>
                         <button onClick={() => {
-                          if (confirm(`CUIDADO: Excluir ${c.nome}?\n\nTodos os lançamentos dele também serão removidos. Esta ação é irreversível.\n\nClique OK para confirmar.`)) {
-                            if (confirm(`Tem certeza? Clique OK NOVAMENTE para deletar ${c.nome}.`)) {
-                              registrarAuditoria("deletar_cambista", { id: c.id, nome: c.nome });
-                              update((d) => {
-                                d.cambistas = d.cambistas.filter((x) => x.id !== c.id);
-                                d.lancamentos = d.lancamentos.filter((l) => l.cambistaId !== c.id);
-                                d.pagamentos = (d.pagamentos || []).filter((p) => p.cambistaId !== c.id);
-                              });
-                              toast(`${c.nome} foi removido.`, "success");
-                            }
+                          if (confirm(`Remover ${c.nome} da lista de cambistas?\n\nO histórico dele (lançamentos e pagamentos) fica salvo e continua contando no faturamento, lucro anual e relatórios. Ele apenas sai desta lista.\n\nClique OK para confirmar.`)) {
+                            registrarAuditoria("arquivar_cambista", { id: c.id, nome: c.nome });
+                            // Arquiva em vez de excluir: apagar removeria os lançamentos
+                            // do faturamento/lucro anual — o histórico é permanente
+                            update((d) => {
+                              const i = d.cambistas.findIndex((x) => x.id === c.id);
+                              if (i !== -1) d.cambistas[i] = { ...d.cambistas[i], arquivado: true, ativo: false };
+                            });
+                            toast(`${c.nome} saiu da lista. O histórico dele continua nos números.`, "success");
                           }
-                        }} className="w-full text-left px-4 py-2 text-sm text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition-colors duration-150"><Trash2 size={14} /> Deletar</button>
+                        }} className="w-full text-left px-4 py-2 text-sm text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition-colors duration-150"><Trash2 size={14} /> Remover da lista</button>
                       </ActionMenu>
                     </div>
                   </td>
@@ -2836,7 +2836,7 @@ function FechamentoSemanal({ db, cambById, lancs, gran, ref_, preSelecionar, onC
             <label className="block text-[11px] uppercase tracking-wide text-slate-400 mb-1">Cambista (opcional)</label>
             <select value={cambistaSel} onChange={(ev) => aoSelecionarCambista(ev.target.value)} className={inpDark}>
               <option value="">Preencher Manualmente</option>
-              {db.cambistas.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+              {db.cambistas.filter((c) => !c.arquivado).map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
             </select>
           </div>
 
@@ -2989,7 +2989,7 @@ function AuditoriaCambistas({ db }) {
     return <EmptyState icon={BarChart3} titulo="Nenhum cambista cadastrado" descricao="Crie cambistas para gerar o relatório de auditoria." />;
   }
 
-  const cambistasAtivos = db.cambistas.filter((c) => c.ativo);
+  const cambistasAtivos = db.cambistas.filter((c) => c.ativo && !c.arquivado);
   const filtroAtivo = Boolean(dtDe && dtAte);
   const lancamentosPreview = filtroAtivo ? (db.lancamentos || []).filter((l) => dentro(l, parse(dtDe), parse(dtAte))) : (db.lancamentos || []);
   const pagamentosPreview = filtroAtivo ? (db.pagamentos || []).filter((p) => dentro(p, parse(dtDe), parse(dtAte))) : (db.pagamentos || []);
@@ -3516,7 +3516,7 @@ function RelatorioAuditoria({ db, dtDe, dtAte }) {
   let primeiraData = null;
   let ultimaData = null;
 
-  for (const cambista of db.cambistas.filter((c) => c.ativo)) {
+  for (const cambista of db.cambistas.filter((c) => c.ativo && !c.arquivado)) {
     const semanas = semanasHistorico(cambista, lancamentosFiltrados, pagamentosFiltrados);
     if (semanas.length === 0) continue;
 
@@ -3534,7 +3534,7 @@ function RelatorioAuditoria({ db, dtDe, dtAte }) {
   const totalPago = Object.values(pagosTotais).reduce((a, v) => a + v, 0);
   const totalRecebido = Object.values(recebidosTotais).reduce((a, v) => a + v, 0);
   const cambistaEmAtraso = db.cambistas.filter((c) => c.ativo && recebidosTotais[c.id] > 0.01).length;
-  const taxaInadimplencia = db.cambistas.filter((c) => c.ativo).length > 0 ? (cambistaEmAtraso / db.cambistas.filter((c) => c.ativo).length) * 100 : 0;
+  const taxaInadimplencia = db.cambistas.filter((c) => c.ativo && !c.arquivado).length > 0 ? (cambistaEmAtraso / db.cambistas.filter((c) => c.ativo && !c.arquivado).length) * 100 : 0;
 
   return (
     <div className="space-y-4">
@@ -3584,14 +3584,14 @@ function RelatorioAuditoria({ db, dtDe, dtAte }) {
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-            <div className="bg-slate-100 p-2 rounded"><span className="text-slate-600">Cambistas Ativos:</span> <span className="font-bold">{db.cambistas.filter((c) => c.ativo).length}</span></div>
+            <div className="bg-slate-100 p-2 rounded"><span className="text-slate-600">Cambistas Ativos:</span> <span className="font-bold">{db.cambistas.filter((c) => c.ativo && !c.arquivado).length}</span></div>
             <div className="bg-slate-100 p-2 rounded"><span className="text-slate-600">Semanas Analisadas:</span> <span className="font-bold">{new Set(lancamentosFiltrados.map((l) => iso(startOfWeek(parse(l.data))))).size}</span></div>
             <div className="bg-rose-100 p-2 rounded"><span className="text-rose-600">Em Atraso:</span> <span className="font-bold">{cambistaEmAtraso}</span></div>
             <div className="bg-amber-100 p-2 rounded"><span className="text-amber-600">Risco Médio:</span> <span className="font-bold">Análise Concluída</span></div>
           </div>
         </div>
 
-        {db.cambistas.filter((c) => c.ativo).map((cambista) => {
+        {db.cambistas.filter((c) => c.ativo && !c.arquivado).map((cambista) => {
           const semanas = semanasHistorico(cambista, lancamentosFiltrados, pagamentosFiltrados);
           if (semanas.length === 0) return null;
 
