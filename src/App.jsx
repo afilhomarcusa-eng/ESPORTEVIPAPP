@@ -2166,9 +2166,18 @@ function ModalPagamento({ dados, onClose, onSave }) {
 }
 
 function ModalLancamento({ dados, onClose, onSave }) {
-  // Lançamento sempre é da semana atual (segunda-feira da semana)
-  const semanaPadrao = iso(startOfWeek(new Date()));
-  const [f, setF] = useState({ valor: "", data: semanaPadrao, pctTxt: String(Math.round((dados.comissaoPadrao || 0) * 1000) / 10) });
+  // Lançamento é sempre por semana (segunda a domingo); grava a segunda-feira da semana.
+  // O seletor mostra só o intervalo de datas, da semana atual até 11 semanas atrás.
+  const semanas = useMemo(() => {
+    const dm = (d) => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}`;
+    return Array.from({ length: 12 }, (_, i) => {
+      const s = startOfWeek(new Date());
+      s.setDate(s.getDate() - i * 7);
+      const e = new Date(s); e.setDate(s.getDate() + 6);
+      return { valor: iso(s), rotulo: `${dm(s)} a ${dm(e)}` };
+    });
+  }, []);
+  const [f, setF] = useState({ valor: "", data: semanas[0].valor, pctTxt: String(Math.round((dados.comissaoPadrao || 0) * 1000) / 10) });
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
   const negativo = String(f.valor).trim().startsWith("-");
   const alternarSinal = () => set("valor", negativo ? String(f.valor).replace("-", "") : `-${String(f.valor).trim()}`);
@@ -2193,10 +2202,15 @@ function ModalLancamento({ dados, onClose, onSave }) {
             <input value={f.valor} onChange={(e) => set("valor", e.target.value)} className={`${inp} min-w-0`} inputMode="decimal" placeholder="ex.: 500" autoFocus />
           </div>
         </Campo>
-        <Campo label="Comissão (%)">
-          <input value={f.pctTxt} onChange={(e) => set("pctTxt", e.target.value)} className={inp} inputMode="decimal" />
+        <Campo label="Semana">
+          <select value={f.data} onChange={(e) => set("data", e.target.value)} className={inp}>
+            {semanas.map((s) => <option key={s.valor} value={s.valor}>{s.rotulo}</option>)}
+          </select>
         </Campo>
       </div>
+      <Campo label="Comissão (%)">
+        <input value={f.pctTxt} onChange={(e) => set("pctTxt", e.target.value)} className={inp} inputMode="decimal" />
+      </Campo>
       <div className="bg-slate-50 rounded-lg p-3 text-sm space-y-1.5">
         <div className="flex justify-between"><span className="text-slate-500">Comissão</span><span className={`font-semibold tabular-nums ${comissao < 0 ? "text-rose-600" : "text-slate-900"}`}>{brl(comissao)}</span></div>
         <div className="flex justify-between border-t border-slate-200 pt-1.5"><span className="text-slate-500">{liquido >= 0 ? "Líquido da Casa" : "Saldo Devedor"}</span><span className={`font-bold tabular-nums ${liquido >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{brl(liquido)}</span></div>
