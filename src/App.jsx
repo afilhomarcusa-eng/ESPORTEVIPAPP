@@ -2635,7 +2635,12 @@ function GastosControl({ db, update, gran, ref_, range }) {
                   <td className="px-4 py-2.5">
                     <div className="flex gap-1 justify-end">
                       <button onClick={() => { setEditId(g.id); setCategoria(g.categoria); setDescricao(g.descricao); setValor(String(g.valor)); setData(g.data); setResponsavel(g.responsavel || ""); window.scrollTo({ top: 0, behavior: "smooth" }); }} aria-label={`Editar gasto ${g.descricao}`} title="Editar" className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 transition-colors duration-150"><Pencil size={14} /></button>
-                      <button onClick={() => { update((d) => { d.gastos = d.gastos.filter((x) => x.id !== g.id); }); toast("Gasto removido.", "success"); }} aria-label={`Excluir gasto ${g.descricao}`} title="Excluir" className="p-1.5 rounded-md hover:bg-rose-50 text-rose-500 transition-colors duration-150"><Trash2 size={14} /></button>
+                      <button onClick={() => {
+                        if (!confirm(`Excluir o gasto "${g.descricao || g.categoria}" de ${brl(g.valor)} (${fmtData(g.data)})?\n\nEsta ação não pode ser desfeita.`)) return;
+                        registrarAuditoria("excluir_gasto", { categoria: g.categoria, descricao: g.descricao, valor: g.valor, data: g.data });
+                        update((d) => { d.gastos = d.gastos.filter((x) => x.id !== g.id); });
+                        toast("Gasto excluído.", "success");
+                      }} aria-label={`Excluir gasto ${g.descricao}`} title="Excluir" className="p-1.5 rounded-md hover:bg-rose-50 text-rose-500 transition-colors duration-150"><Trash2 size={14} /></button>
                     </div>
                   </td>
                 </tr>
