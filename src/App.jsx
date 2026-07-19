@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import * as XLSX from "xlsx";
+import html2canvas from "html2canvas";
 import {
-  ResponsiveContainer, AreaChart, Area, BarChart, Bar, LineChart, Line,
+  ResponsiveContainer, ComposedChart, Area, BarChart, Bar, LineChart, Line,
   PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine,
 } from "recharts";
 import {
@@ -26,7 +27,9 @@ const fmtEixo = (v) => {
   if (abs >= 1000) return (v / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + "k";
   return v.toLocaleString("pt-BR", { maximumFractionDigits: 0 });
 };
-const toNum = (v) => { const n = parseFloat(String(v).replace(",", ".")); return isNaN(n) ? 0 : n; };
+// Delega ao parseNumeroSheet (hoisted): "1.234,56" era lido como 1.234 pelo
+// parseFloat simples — milhar pt-BR precisa do mesmo tratamento da planilha
+const toNum = (v) => parseNumeroSheet(v);
 const pad = (n) => String(n).padStart(2, "0");
 const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const parse = (s) => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
@@ -589,8 +592,14 @@ async function loadDB() {
   if (nuvemConfigurada()) {
     try {
       const nuvem = await nuvemCarregar();
-      if (nuvem && !nuvem.exemplo) db = nuvem; // a nuvem é a fonte da verdade
-      else if (db) await nuvemSalvar(db); // primeira vez (ou nuvem só com exemplo): sobe o local
+      if (nuvem && !nuvem.exemplo) {
+        // Vence o mais novo: se o save na nuvem foi abortado (aba fechada, rede),
+        // o localStorage pode estar à frente — antes a nuvem sempre ganhava e
+        // sobrescrevia as mudanças locais mais recentes
+        const localMaisNovo = db?.atualizadoEm && nuvem.atualizadoEm && db.atualizadoEm > nuvem.atualizadoEm;
+        if (localMaisNovo) await nuvemSalvar(db);
+        else db = nuvem;
+      } else if (db) await nuvemSalvar(db); // primeira vez (ou nuvem só com exemplo): sobe o local
     } catch (e) { console.warn("Nuvem indisponível, usando dados locais:", e.message); }
   }
   if (!db) db = bancoVazio();
@@ -605,6 +614,7 @@ async function loadDB() {
 // chegar fora de ordem no Supabase e o estado antigo sobrescrevia o novo.
 let filaNuvem = Promise.resolve();
 async function saveDB(db) {
+  db.atualizadoEm = new Date().toISOString(); // carimbo usado pelo loadDB para decidir quem é mais novo
   const localOk = localSalvar(db);
   let nuvemOk = null;
   if (nuvemConfigurada()) {
@@ -631,7 +641,7 @@ async function capturarElemento(node, largura, opcoes = {}) {
   wrapper.appendChild(clone);
   document.body.appendChild(wrapper);
   try {
-    return await window.html2canvas(clone, {
+    return await html2canvas(clone, {
       scale: 3, useCORS: true, scrollX: 0, scrollY: 0,
       windowWidth: 1400, windowHeight: 1000,
       ...opcoes,
@@ -927,7 +937,10 @@ function montarDeComissoes(bruto, db) {
   const iPct = col("PERCENTUAL"), iPag = col("PAGAMENTO"), iData = col("DATA");
 
   const hoje = iso(new Date());
-  const idAntigoPorNome = Object.fromEntries((db.cambistas || []).map((c) => [c.nome.trim().toLowerCase(), c.id]));
+  // Preserva os dados cadastrais do cambista já existente no site (contato,
+  // comissão padrão, ativo) — a planilha só traz o nome, e recriar com defaults
+  // apagava esses campos a cada Sincronizar
+  const antigoPorNome = Object.fromEntries((db.cambistas || []).map((c) => [c.nome.trim().toLowerCase(), c]));
   const porNome = new Map(); // chave minúscula → cambista
   const lancamentos = [];
   const pagamentos = [];
@@ -937,9 +950,14 @@ function montarDeComissoes(bruto, db) {
     if (!nome) continue;
     const chave = nome.toLowerCase();
     if (!porNome.has(chave)) {
+      const antigo = antigoPorNome[chave];
       porNome.set(chave, {
-        id: idAntigoPorNome[chave] || uid(),
-        nome, contato: "", comissaoPadrao: 0.1, ativo: true, criadoEm: hoje,
+        id: antigo?.id || uid(),
+        nome,
+        contato: antigo?.contato || "",
+        comissaoPadrao: antigo?.comissaoPadrao ?? 0.1,
+        ativo: antigo?.ativo ?? true,
+        criadoEm: antigo?.criadoEm || hoje,
       });
     }
     const camb = porNome.get(chave);
@@ -985,6 +1003,7 @@ async function sincronizarPlanilha(url, db, update) {
     const gastos = montarGastosDaPlanilha(await buscarLinhasPorNomes(sheetId, ["GASTOS", "Gastos"]));
 
     const agora = new Date().toLocaleString("pt-BR");
+    pularProximoEspelhoPlanilha = true;
     update((d) => {
       d.cambistas = montado.cambistas;
       d.lancamentos = montado.lancamentos;
@@ -1042,6 +1061,7 @@ async function sincronizarPlanilha(url, db, update) {
   const gastosCompleto = montarGastosDaPlanilha(await buscarLinhasPorNomes(sheetId, ["GASTOS", "Gastos"]));
 
   const agora = new Date().toLocaleString("pt-BR");
+  pularProximoEspelhoPlanilha = true;
   update((d) => {
     d.cambistas = cambistas;
     d.lancamentos = lancamentos;
@@ -1052,6 +1072,11 @@ async function sincronizarPlanilha(url, db, update) {
   });
   return { cambistas: cambistas.length, lancamentos: lancamentos.length, pagamentos: pagamentos.length, gastos: gastosCompleto !== null ? gastosCompleto.length : null };
 }
+
+// Ligada pelo sincronizarPlanilha: o update() do pull dispararia o espelhamento
+// automático 3s depois, reescrevendo a planilha logo após tê-la lido — o que
+// destruiria qualquer coisa que o pull não importa (ex.: bloco GASTOS editado à mão)
+let pularProximoEspelhoPlanilha = false;
 
 /* ---- Escrita site → planilha (Web App do Google Apps Script) ----
    O endpoint CSV do Google é somente leitura; para o caminho inverso a planilha
@@ -1163,13 +1188,17 @@ export default function App() {
     setSalvando(true);
     saveDB(db).then((r) => { setNuvemErro(r.nuvemOk === false); setTimeout(() => setSalvando(false), 400); });
     // Espelha na planilha (se o webhook estiver configurado), com debounce para
-    // não reescrever as abas a cada tecla digitada
-    if (db.planilhaWebhookUrl) {
-      clearTimeout(timerPlanilha.current);
+    // não reescrever as abas a cada tecla digitada. O clearTimeout fica fora do
+    // if: remover o webhook também precisa cancelar um envio pendente.
+    clearTimeout(timerPlanilha.current);
+    if (pularProximoEspelhoPlanilha) {
+      pularProximoEspelhoPlanilha = false; // este db veio da própria planilha (Sincronizar) — não devolve
+    } else if (db.planilhaWebhookUrl) {
       timerPlanilha.current = setTimeout(() => {
         planilhaEnviar(db.planilhaWebhookUrl, db).then(() => setPlanilhaErro(false)).catch(() => setPlanilhaErro(true));
       }, 3000);
     }
+    return () => clearTimeout(timerPlanilha.current);
   }, [db]);
 
   // Salvar dados antes de fechar a aba/janela (segurança contra perda de dados)
@@ -1670,7 +1699,8 @@ function Dashboard({ db, update, cambById, lancs, totais, totaisPrev, gran, ref_
           </div>
           <div className="h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={serie} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+              {/* ComposedChart: AreaChart ignora filhos <Line>, a linha de comissão nunca aparecia */}
+              <ComposedChart data={serie} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="gradOrange" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor={THEME_CHART.positivo} stopOpacity={0.35} />
@@ -1684,7 +1714,7 @@ function Dashboard({ db, update, cambById, lancs, totais, totaisPrev, gran, ref_
                 <ReferenceLine y={0} stroke="#cbd5e1" />
                 <Area type="monotone" dataKey="receber" stroke={THEME_CHART.positivo} strokeWidth={2.5} fill="url(#gradOrange)" name="receber" dot={{ r: 3, fill: THEME_CHART.positivo, strokeWidth: 0 }} activeDot={{ r: 5 }} />
                 <Line type="monotone" dataKey="comissao" stroke={THEME_CHART.neutro} strokeWidth={1.6} strokeDasharray="4 3" dot={false} name="comissao" />
-              </AreaChart>
+              </ComposedChart>
             </ResponsiveContainer>
           </div>
         </div>
@@ -1917,7 +1947,7 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range, gerarRelatorio 
                   <td className={`px-4 py-3 text-right tabular-nums ${bruto < 0 ? "text-rose-600" : "text-slate-700"}`}>{brl(bruto)}</td>
                   <td className={`px-4 py-3 text-right tabular-nums font-semibold ${comissao < 0 ? "text-rose-600" : "text-slate-900"}`}>{brl(comissao)}</td>
                   <td className="px-4 py-3 text-right tabular-nums text-slate-500">{brl(pago)}</td>
-                  <td className={`px-4 py-3 text-right tabular-nums font-semibold ${receber < 0 ? "text-emerald-600" : receber > 0.01 ? "text-rose-600" : "text-slate-700"}`}>{brl(saldo)}</td>
+                  <td className={`px-4 py-3 text-right tabular-nums font-semibold ${saldo < -0.01 ? "text-emerald-600" : saldo > 0.01 ? "text-rose-600" : "text-slate-700"}`}>{brl(saldo)}</td>
                   <td className="px-4 py-3 text-center">
                     {receber < 0 ? (
                       <Badge tone="success" icon={CheckCircle2}>Devedor</Badge>
@@ -1942,6 +1972,7 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range, gerarRelatorio 
                               update((d) => {
                                 d.cambistas = d.cambistas.filter((x) => x.id !== c.id);
                                 d.lancamentos = d.lancamentos.filter((l) => l.cambistaId !== c.id);
+                                d.pagamentos = (d.pagamentos || []).filter((p) => p.cambistaId !== c.id);
                               });
                               toast(`${c.nome} foi removido.`, "success");
                             }
@@ -2180,7 +2211,11 @@ function ModalLancamento({ dados, onClose, onSave }) {
   const [f, setF] = useState({ valor: "", data: semanas[0].valor, pctTxt: String(Math.round((dados.comissaoPadrao || 0) * 1000) / 10) });
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
   const negativo = String(f.valor).trim().startsWith("-");
-  const alternarSinal = () => set("valor", negativo ? String(f.valor).replace("-", "") : `-${String(f.valor).trim()}`);
+  const alternarSinal = () => {
+    const v = String(f.valor).trim();
+    if (!v) return; // sem valor digitado não há sinal para alternar
+    set("valor", negativo ? v.replace(/^-+/, "") : `-${v}`);
+  };
   const valorNum = toNum(f.valor);
   const pctNum = toNum(f.pctTxt) / 100;
   const comissao = valorNum * pctNum;
@@ -2690,20 +2725,12 @@ function FechamentoSemanal({ db, cambById, lancs, gran, ref_, preSelecionar, onC
   const [totalManual, setTotalManual] = useState("");
   const [telefone, setTelefone] = useState("");
   const [pagamentoAte, setPagamentoAte] = useState("");
-  const [html2canvasPronto, setHtml2canvasPronto] = useState(typeof window !== "undefined" && !!window.html2canvas);
+  // html2canvas agora vem empacotado no bundle (import no topo) — sem CDN, funciona offline
+  const html2canvasPronto = true;
   const ticketRef = useRef(null);
 
   const [s, e] = periodRange(gran, ref_);
   const periodoDefault = gran === "tudo" ? "Todo o Período" : `${pad(s.getDate())}/${pad(s.getMonth() + 1)} a ${pad(e.getDate())}/${pad(e.getMonth() + 1)}`;
-
-  useEffect(() => {
-    if (typeof window === "undefined" || window.html2canvas) { setHtml2canvasPronto(true); return; }
-    const script = document.createElement("script");
-    script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
-    script.async = true;
-    script.onload = () => setHtml2canvasPronto(true);
-    document.body.appendChild(script);
-  }, []);
 
   useEffect(() => {
     const style = document.createElement("style");
@@ -2742,7 +2769,7 @@ function FechamentoSemanal({ db, cambById, lancs, gran, ref_, preSelecionar, onC
   const inicial = (nome || "").trim()[0]?.toUpperCase() || "?";
 
   const baixarImagem = async () => {
-    if (!window.html2canvas || !ticketRef.current) { toast("O gerador de imagem ainda está carregando. Tente novamente em alguns segundos.", "error"); return; }
+    if (!ticketRef.current) { toast("O ticket ainda não está pronto. Tente novamente.", "error"); return; }
     try {
       const canvas = await capturarElemento(ticketRef.current, 460, { backgroundColor: null });
       const link = document.createElement("a");
@@ -2757,7 +2784,7 @@ function FechamentoSemanal({ db, cambById, lancs, gran, ref_, preSelecionar, onC
 
   const enviarWhatsApp = async () => {
     if (!telefone) return toast("Informe o número do WhatsApp do cambista.", "error");
-    if (!window.html2canvas || !ticketRef.current) return toast("Aguarde o gerador de imagem carregar.", "error");
+    if (!ticketRef.current) return toast("O ticket ainda não está pronto. Tente novamente.", "error");
 
     try {
       const canvas = await capturarElemento(ticketRef.current, 460, { backgroundColor: null });
