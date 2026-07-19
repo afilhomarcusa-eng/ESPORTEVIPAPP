@@ -2197,9 +2197,6 @@ function ModalLancamento({ dados, onClose, onSave }) {
           <input value={f.pctTxt} onChange={(e) => set("pctTxt", e.target.value)} className={inp} inputMode="decimal" />
         </Campo>
       </div>
-      <Campo label="Comissão (%)">
-        <input value={f.pctTxt} onChange={(e) => set("pctTxt", e.target.value)} className={inp} inputMode="decimal" />
-      </Campo>
       <div className="bg-slate-50 rounded-lg p-3 text-sm space-y-1.5">
         <div className="flex justify-between"><span className="text-slate-500">Comissão</span><span className={`font-semibold tabular-nums ${comissao < 0 ? "text-rose-600" : "text-slate-900"}`}>{brl(comissao)}</span></div>
         <div className="flex justify-between border-t border-slate-200 pt-1.5"><span className="text-slate-500">{liquido >= 0 ? "Líquido da Casa" : "Saldo Devedor"}</span><span className={`font-bold tabular-nums ${liquido >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{brl(liquido)}</span></div>
