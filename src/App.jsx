@@ -1172,6 +1172,22 @@ export default function App() {
     }
   }, [db]);
 
+  // Salvar dados antes de fechar a aba/janela (segurança contra perda de dados)
+  useEffect(() => {
+    const salvarAntesDeSair = (e) => {
+      if (db) {
+        saveDB(db);
+        // Mensagem de confirmação se houver mudanças não sincronizadas
+        if (salvando) {
+          e.preventDefault();
+          e.returnValue = "Há mudanças não sincronizadas. Tem certeza que quer sair?";
+        }
+      }
+    };
+    window.addEventListener("beforeunload", salvarAntesDeSair);
+    return () => window.removeEventListener("beforeunload", salvarAntesDeSair);
+  }, [db, salvando]);
+
   const cambById = useMemo(() => Object.fromEntries((db?.cambistas || []).map((c) => [c.id, c])), [db]);
 
   const [s, e] = useMemo(() => periodRange(gran, ref), [gran, ref]);
