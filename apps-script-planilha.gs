@@ -12,7 +12,7 @@ function doPost(e) {
   var dados = JSON.parse(e.postData.contents);
   var ss = SpreadsheetApp.getActiveSpreadsheet();
 
-  escreverAba(ss, "Cambistas",
+  escreverAba(ss, "CAMBISTAS",
     [["Nome", "Contato", "Comissao Padrao", "Ativo"]].concat(
       (dados.cambistas || []).map(function (c) {
         return [c.nome, c.contato, c.comissaoPadrao, c.ativo ? "Sim" : "Nao"];
@@ -20,14 +20,23 @@ function doPost(e) {
     )
   );
 
+  // Lançamentos separados por semana (com datas) — apenas referência do site
   escreverAba(ss, "Lancamentos",
-    [["Data", "Cambista", "Positivo (R$)", "Percentual"]].concat(
+    [["Semana", "Data", "Cambista", "Positivo (R$)", "Percentual"]].concat(
       (dados.lancamentos || []).map(function (l) {
-        return [l.data, l.cambista, l.positivo, l.percentual];
+        var d = new Date(l.data);
+        var semanaInicio = new Date(d);
+        semanaInicio.setDate(semanaInicio.getDate() - (semanaInicio.getDay() === 0 ? 6 : semanaInicio.getDay() - 1));
+        var semanaFim = new Date(semanaInicio);
+        semanaFim.setDate(semanaFim.getDate() + 6);
+        var fmt = function(dt) { return ("0" + dt.getDate()).slice(-2) + "/" + ("0" + (dt.getMonth() + 1)).slice(-2); };
+        var semanaLabel = fmt(semanaInicio) + " a " + fmt(semanaFim);
+        return [semanaLabel, l.data, l.cambista, l.positivo, l.percentual];
       })
     )
   );
 
+  // Pagamentos com datas — apenas referência do site
   escreverAba(ss, "Pagamentos",
     [["Data", "Cambista", "Valor (R$)", "Obs"]].concat(
       (dados.pagamentos || []).map(function (p) {
@@ -36,7 +45,7 @@ function doPost(e) {
     )
   );
 
-  escreverAba(ss, "Gastos",
+  escreverAba(ss, "GASTOS",
     [["DATA", "CATEGORIA", "QUEM GASTOU", "DESCRIÇÃO", "VALOR"]].concat(
       (dados.gastos || []).map(function (g) {
         return [g.data, g.categoria, g.responsavel, g.descricao, g.valor];

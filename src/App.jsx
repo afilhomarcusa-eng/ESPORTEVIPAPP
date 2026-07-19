@@ -2150,18 +2150,9 @@ function ModalPagamento({ dados, onClose, onSave }) {
 }
 
 function ModalLancamento({ dados, onClose, onSave }) {
-  // O lançamento do cambista é sempre semanal: em vez de escolher um dia, escolhe-se a
-  // semana (segunda a domingo) e a data gravada é a segunda-feira daquela semana.
-  const semanas = useMemo(() => {
-    const dm = (d) => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}`;
-    return Array.from({ length: 12 }, (_, i) => {
-      const s = startOfWeek(new Date());
-      s.setDate(s.getDate() - i * 7);
-      const e = new Date(s); e.setDate(s.getDate() + 6);
-      return { valor: iso(s), rotulo: `${dm(s)} a ${dm(e)}${i === 0 ? " (semana atual)" : ""}` };
-    });
-  }, []);
-  const [f, setF] = useState({ valor: "", data: semanas[0].valor, pctTxt: String(Math.round((dados.comissaoPadrao || 0) * 1000) / 10) });
+  // Lançamento sempre é da semana atual (segunda-feira da semana)
+  const semanaPadrao = iso(startOfWeek(new Date()));
+  const [f, setF] = useState({ valor: "", data: semanaPadrao, pctTxt: String(Math.round((dados.comissaoPadrao || 0) * 1000) / 10) });
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
   const negativo = String(f.valor).trim().startsWith("-");
   const alternarSinal = () => set("valor", negativo ? String(f.valor).replace("-", "") : `-${String(f.valor).trim()}`);
@@ -2177,19 +2168,17 @@ function ModalLancamento({ dados, onClose, onSave }) {
   return (
     <Modal titulo={`Novo Lançamento — ${dados.nome}`} onClose={onClose} onSave={salvar}>
       <div className="grid grid-cols-2 gap-3">
-        <Campo label="Valor Movimentado (R$)">
+        <Campo label="Valor (R$)">
           <div className="flex gap-1.5">
-            <button type="button" onClick={alternarSinal} title="Alternar entre positivo e negativo"
+            <button type="button" onClick={alternarSinal} title="Alternar sinal"
               className={`shrink-0 w-9 rounded-lg border text-sm font-bold transition-colors ${negativo ? "bg-rose-50 border-rose-300 text-rose-600" : "bg-emerald-50 border-emerald-300 text-emerald-600"}`}>
               {negativo ? "−" : "+"}
             </button>
             <input value={f.valor} onChange={(e) => set("valor", e.target.value)} className={`${inp} min-w-0`} inputMode="decimal" placeholder="ex.: 500" autoFocus />
           </div>
         </Campo>
-        <Campo label="Semana">
-          <select value={f.data} onChange={(e) => set("data", e.target.value)} className={inp}>
-            {semanas.map((s) => <option key={s.valor} value={s.valor}>{s.rotulo}</option>)}
-          </select>
+        <Campo label="Comissão (%)">
+          <input value={f.pctTxt} onChange={(e) => set("pctTxt", e.target.value)} className={inp} inputMode="decimal" />
         </Campo>
       </div>
       <Campo label="Comissão (%)">
