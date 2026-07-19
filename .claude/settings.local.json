@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(winget install Git.Git)",
+      "PowerShell(winget install OpenJS.NodeJS -e --silent --accept-package-agreements --accept-source-agreements)",
+      "PowerShell(node --version)",
+      "PowerShell(npm --version)",
+      "PowerShell(python -m pip install --upgrade pip)",
+      "PowerShell(python -m pip install graphifyy)",
+      "PowerShell(graphify install)",
+      "PowerShell($env:Path = \"C:\\\\Program Files\\\\nodejs;\" + $env:Path; cd C:\\\\Users\\\\MARCUS\\\\Desktop\\\\LUAN; npm run build)",
+      "PowerShell($r = Invoke-WebRequest -Uri \"https://script.google.com/macros/s/AKfycbx6vB870KWoEoKNjjP8twsjBmXt-FV2mTCmQzPaoNEbFg4LWjTEfeCso9bAazN2iGagTg/exec\" -Method GET -UseBasicParsing -MaximumRedirection 5; Write-Host \"Status: $\\($r.StatusCode\\)\"; $t = $r.Content; if \\($t.Length -gt 500\\) { $t.Substring\\(0,500\\) } else { $t })",
+      "PowerShell($env:Path = \"C:\\\\Program Files\\\\Git\\\\bin;\" + $env:Path; cd C:\\\\Users\\\\MARCUS\\\\Desktop\\\\LUAN; git status)"
+    ]
+  }
+}
