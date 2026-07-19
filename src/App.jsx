@@ -593,12 +593,20 @@ async function loadDB() {
     try {
       const nuvem = await nuvemCarregar();
       if (nuvem && !nuvem.exemplo) {
-        // Vence o mais novo: se o save na nuvem foi abortado (aba fechada, rede),
-        // o localStorage pode estar à frente — antes a nuvem sempre ganhava e
-        // sobrescrevia as mudanças locais mais recentes
-        const localMaisNovo = db?.atualizadoEm && nuvem.atualizadoEm && db.atualizadoEm > nuvem.atualizadoEm;
-        if (localMaisNovo) await nuvemSalvar(db);
-        else db = nuvem;
+        // "geracao" marca um reset deliberado (zerar dados): geração maior na nuvem
+        // vence SEMPRE, senão o localStorage antigo ressuscitava os dados apagados
+        // por ter carimbo de hora mais novo (salvo no F5).
+        const geracaoNuvem = nuvem.geracao || 0;
+        const geracaoLocal = db?.geracao || 0;
+        if (geracaoNuvem > geracaoLocal) {
+          db = nuvem;
+        } else {
+          // Mesma geração: vence o mais novo — se o save na nuvem foi abortado
+          // (aba fechada, rede), o localStorage pode estar à frente
+          const localMaisNovo = db?.atualizadoEm && nuvem.atualizadoEm && db.atualizadoEm > nuvem.atualizadoEm;
+          if (localMaisNovo) await nuvemSalvar(db);
+          else db = nuvem;
+        }
       } else if (db) await nuvemSalvar(db); // primeira vez (ou nuvem só com exemplo): sobe o local
     } catch (e) { console.warn("Nuvem indisponível, usando dados locais:", e.message); }
   }
@@ -1202,16 +1210,16 @@ export default function App() {
     return () => clearTimeout(timerPlanilha.current);
   }, [db]);
 
-  // Salvar dados antes de fechar a aba/janela (segurança contra perda de dados)
+  // Ao fechar a aba: garante o salvamento LOCAL (síncrono e confiável).
+  // O fetch para a nuvem seria abortado pelo navegador no unload — e reagendá-lo
+  // aqui fazia o estado antigo "ressuscitar" por cima de um zeramento deliberado.
   useEffect(() => {
     const salvarAntesDeSair = (e) => {
-      if (db) {
-        saveDB(db);
-        // Mensagem de confirmação se houver mudanças não sincronizadas
-        if (salvando) {
-          e.preventDefault();
-          e.returnValue = "Há mudanças não sincronizadas. Tem certeza que quer sair?";
-        }
+      if (!db) return;
+      localSalvar(db);
+      if (salvando) {
+        e.preventDefault();
+        e.returnValue = "Ainda salvando na nuvem. Tem certeza que quer sair?";
       }
     };
     window.addEventListener("beforeunload", salvarAntesDeSair);
