@@ -2047,7 +2047,7 @@ function Cambistas({ db, update, cambById, lancs, rotulo, range, gerarRelatorio 
           }} />
       )}
       {detalhe && (
-        <ModalDetalheCambista cambista={detalhe} lancamentos={db.lancamentos.filter((l) => l.cambistaId === detalhe.id)}
+        <ModalDetalheCambista cambista={detalhe} update={update} lancamentos={db.lancamentos.filter((l) => l.cambistaId === detalhe.id)}
           pagamentos={(db.pagamentos || []).filter((p) => p.cambistaId === detalhe.id)} onClose={() => setDetalhe(null)} />
       )}
       {planilhaModal && (
@@ -2264,7 +2264,7 @@ function MiniKpi({ rotulo, v, cor = "text-slate-900", dot = "bg-slate-400" }) {
   );
 }
 
-function ModalDetalheCambista({ cambista, lancamentos, pagamentos, onClose }) {
+function ModalDetalheCambista({ cambista, update, lancamentos, pagamentos, onClose }) {
   const [gran, setGran] = useState("mes");
   const [ref, setRef] = useState(new Date());
   const [dtDe, setDtDe] = useState("");
@@ -2278,15 +2278,24 @@ function ModalDetalheCambista({ cambista, lancamentos, pagamentos, onClose }) {
   }, [lancamentos, custom, gran, s, e]);
   const ag = useMemo(() => agrega(ls, cambById), [ls]);
 
-  const porDia = useMemo(() => {
-    const map = new Map();
-    for (const l of ls) {
-      const cur = map.get(l.data) || { data: l.data, total: 0, n: 0 };
-      cur.total += l.positivo; cur.n += 1;
-      map.set(l.data, cur);
-    }
-    return [...map.values()].sort((a, b) => b.data.localeCompare(a.data));
-  }, [ls]);
+  const lsOrdenados = useMemo(() => [...ls].sort((a, b) => b.data.localeCompare(a.data)), [ls]);
+  const pagsPeriodo = useMemo(() =>
+    pagamentos.filter((p) => custom ? dentro(p, s, e) : (gran === "tudo" || dentro(p, s, e)))
+      .sort((a, b) => b.data.localeCompare(a.data)),
+    [pagamentos, custom, gran, s, e]);
+
+  const excluirLancamento = (l) => {
+    if (!confirm(`Excluir o lançamento de ${brl(l.positivo)} da semana de ${fmtData(l.data)}?\n\nEle sai do faturamento e dos relatórios. Esta ação não pode ser desfeita.`)) return;
+    registrarAuditoria("excluir_lancamento", { cambista: cambista.nome, valor: l.positivo, data: l.data });
+    update((d) => { d.lancamentos = d.lancamentos.filter((x) => x.id !== l.id); });
+    toast("Lançamento excluído.", "success");
+  };
+  const excluirPagamento = (p) => {
+    if (!confirm(`Excluir o pagamento de ${brl(p.valor)} de ${fmtData(p.data)}?\n\nEsta ação não pode ser desfeita.`)) return;
+    registrarAuditoria("excluir_pagamento", { cambista: cambista.nome, valor: p.valor, data: p.data });
+    update((d) => { d.pagamentos = (d.pagamentos || []).filter((x) => x.id !== p.id); });
+    toast("Pagamento excluído.", "success");
+  };
 
   const pagoNoPeriodo = pagamentos.filter((p) => custom ? dentro(p, s, e) : (gran === "tudo" || dentro(p, s, e))).reduce((a, p) => a + p.valor, 0);
   const saldo = ag.comissao - pagoNoPeriodo;
@@ -2332,25 +2341,50 @@ function ModalDetalheCambista({ cambista, lancamentos, pagamentos, onClose }) {
 
           <div className={cardBox}>
             <div className="flex items-center justify-between mb-3">
-              <div className={titSec + " mb-0"}>Histórico por Dia</div>
+              <div className={titSec + " mb-0"}>Histórico de Lançamentos</div>
               <div className="text-right">
                 <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Saldo Total</div>
                 <div className={`text-lg font-bold tabular-nums ${ag.bruto >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{ag.bruto >= 0 ? "+" : ""}{brl(ag.bruto)}</div>
               </div>
             </div>
             <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
-              {porDia.map((d) => (
-                <div key={d.data} className="flex items-center justify-between py-2.5">
-                  <span className="text-sm text-slate-600 tabular-nums">
-                    {fmtData(d.data)}
-                    {d.n > 1 && <span className="text-xs text-slate-500 ml-2">({d.n} lançamentos)</span>}
+              {lsOrdenados.map((l) => (
+                <div key={l.id} className="flex items-center justify-between py-2 gap-2">
+                  <span className="text-sm text-slate-600 tabular-nums min-w-0">
+                    {fmtData(l.data)}
+                    {l.pct != null && <span className="text-xs text-slate-400 ml-2">{pct(l.pct)}</span>}
                   </span>
-                  <span className={`text-sm font-bold tabular-nums ${d.total >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{d.total >= 0 ? "+" : ""}{brl(d.total)}</span>
+                  <span className="flex items-center gap-1.5 shrink-0">
+                    <span className={`text-sm font-bold tabular-nums ${l.positivo >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{l.positivo >= 0 ? "+" : ""}{brl(l.positivo)}</span>
+                    <button onClick={() => excluirLancamento(l)} title="Excluir lançamento" aria-label="Excluir lançamento"
+                      className="p-1.5 rounded-md hover:bg-rose-50 text-slate-300 hover:text-rose-500 transition-colors duration-150"><Trash2 size={13} /></button>
+                  </span>
                 </div>
               ))}
-              {porDia.length === 0 && <EmptyState icon={Inbox} titulo="Nenhum lançamento neste período" />}
+              {lsOrdenados.length === 0 && <EmptyState icon={Inbox} titulo="Nenhum lançamento neste período" />}
             </div>
           </div>
+
+          {pagsPeriodo.length > 0 && (
+            <div className={cardBox}>
+              <div className={titSec}>Pagamentos no Período</div>
+              <div className="max-h-60 overflow-y-auto divide-y divide-slate-100">
+                {pagsPeriodo.map((p) => (
+                  <div key={p.id} className="flex items-center justify-between py-2 gap-2">
+                    <span className="text-sm text-slate-600 tabular-nums min-w-0">
+                      {fmtData(p.data)}
+                      {p.obs && <span className="text-xs text-slate-400 ml-2 truncate">{p.obs}</span>}
+                    </span>
+                    <span className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-sm font-bold tabular-nums text-emerald-600">{brl(p.valor)}</span>
+                      <button onClick={() => excluirPagamento(p)} title="Excluir pagamento" aria-label="Excluir pagamento"
+                        className="p-1.5 rounded-md hover:bg-rose-50 text-slate-300 hover:text-rose-500 transition-colors duration-150"><Trash2 size={13} /></button>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
